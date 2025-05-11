@@ -209,6 +209,7 @@ export default function EnhancedRsiChart({
     plugins: {
       legend: {
         position: 'top' as const,
+        align: 'end' as const,
         labels: {
           usePointStyle: true,
           pointStyle: 'circle',

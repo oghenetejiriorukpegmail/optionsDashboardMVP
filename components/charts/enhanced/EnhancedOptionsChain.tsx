@@ -285,6 +285,7 @@ export default function EnhancedOptionsChain({
     plugins: {
       legend: {
         position: "top" as const,
+        align: "end" as const,
         labels: {
           usePointStyle: true,
           pointStyle: 'circle',

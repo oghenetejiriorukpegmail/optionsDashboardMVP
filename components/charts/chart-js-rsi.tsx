@@ -48,6 +48,7 @@ export default function ChartJSRSI({
     plugins: {
       legend: {
         position: "top" as const,
+        align: "end" as const,
       },
       title: {
         display: true,

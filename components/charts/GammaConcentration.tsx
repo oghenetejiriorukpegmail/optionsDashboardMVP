@@ -233,6 +233,7 @@ export default function GammaConcentration({
     plugins: {
       legend: {
         position: "top",
+        align: "end",
         labels: {
           usePointStyle: true,
           pointStyle: 'circle',

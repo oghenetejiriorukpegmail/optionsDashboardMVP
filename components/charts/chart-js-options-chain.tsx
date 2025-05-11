@@ -123,6 +123,7 @@ export default function ChartJSOptionsChain({
     plugins: {
       legend: {
         position: "top" as const,
+        align: "end" as const,
       },
       title: {
         display: true,

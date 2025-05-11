@@ -285,6 +285,7 @@ export default function BullishTechnicalChart({
     plugins: {
       legend: {
         position: 'top' as const,
+        align: 'end' as const,
         labels: {
           usePointStyle: true,
           padding: 15,

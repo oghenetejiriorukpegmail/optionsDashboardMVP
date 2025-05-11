@@ -222,6 +222,7 @@ export default function BullishOptionsVisualizer({
     plugins: {
       legend: {
         position: 'top' as const,
+        align: 'end' as const,
         labels: {
           usePointStyle: true,
           color: '#a1a1aa',
