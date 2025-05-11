@@ -18,9 +18,12 @@ import {
   TrendingUp,
   TrendingDown,
   CheckCircle,
-  Shield
+  Shield,
+  Target
 } from "lucide-react";
 import { RiskCalculator } from "@/components/risk-management/risk-calculator";
+import { StopLossStrategy } from "@/components/risk-management/stop-loss-strategy";
+import { RiskRewardAnalysis } from "@/components/risk-management/risk-reward-analysis";
 
 export default function RiskManagement() {
   // Mock data for risk calculator
@@ -118,33 +121,19 @@ export default function RiskManagement() {
         
         <TabsContent value="stop-loss" className="space-y-6">
           <div className="grid grid-cols-1 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Stop Loss Strategy</CardTitle>
-                <CardDescription>
-                  Create optimal stop loss strategies
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                Simplified stop loss content for debugging
-              </CardContent>
-            </Card>
+            <StopLossStrategy
+              symbol={aapl.symbol}
+              stockData={aapl.stockData}
+            />
           </div>
         </TabsContent>
 
         <TabsContent value="risk-reward" className="space-y-6">
           <div className="grid grid-cols-1 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Risk/Reward Analysis</CardTitle>
-                <CardDescription>
-                  Evaluating trade opportunities
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                Simplified risk/reward content for debugging
-              </CardContent>
-            </Card>
+            <RiskRewardAnalysis
+              symbol={aapl.symbol}
+              stockData={aapl.stockData}
+            />
           </div>
         </TabsContent>
       </Tabs>

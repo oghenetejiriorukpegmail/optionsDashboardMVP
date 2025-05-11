@@ -2,16 +2,16 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { 
-  BookOpen, 
-  BookText, 
-  BarChart3, 
-  Target, 
-  CheckCircle, 
-  Calculator, 
-  LineChart, 
-  Search, 
-  ArrowRight, 
+import {
+  BookOpen,
+  Book,
+  BarChart3,
+  Target,
+  CheckCircle,
+  Calculator,
+  LineChart,
+  Search,
+  ArrowRight,
   BarChart,
   ChevronDown,
   ChevronRight,
@@ -20,7 +20,8 @@ import {
   Clock,
   HelpCircle,
   Lightbulb,
-  FileText
+  FileText,
+  Settings
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -95,11 +96,11 @@ const documentationSections = [
               Analyzes price action using multiple exponential moving averages (EMAs) to determine the current trend.
             </p>
             <ul className="list-disc list-inside space-y-1">
-              <li><strong>Strong Bullish:</strong> EMA 10 > EMA 20 > EMA 50 with strong momentum</li>
-              <li><strong>Bullish:</strong> EMA 10 > EMA 20 > EMA 50</li>
+              <li><strong>Strong Bullish:</strong> EMA 10 &gt; EMA 20 &gt; EMA 50 with strong momentum</li>
+              <li><strong>Bullish:</strong> EMA 10 &gt; EMA 20 &gt; EMA 50</li>
               <li><strong>Transitioning:</strong> EMAs are crossing or close to crossing</li>
-              <li><strong>Bearish:</strong> EMA 10 < EMA 20 < EMA 50</li>
-              <li><strong>Strong Bearish:</strong> EMA 10 < EMA 20 < EMA 50 with strong downward momentum</li>
+              <li><strong>Bearish:</strong> EMA 10 &lt; EMA 20 &lt; EMA 50</li>
+              <li><strong>Strong Bearish:</strong> EMA 10 &lt; EMA 20 &lt; EMA 50 with strong downward momentum</li>
             </ul>
           </div>
           
@@ -174,7 +175,7 @@ const documentationSections = [
             </p>
             <h5 className="font-medium mb-1">Key Criteria:</h5>
             <ul className="list-disc list-inside space-y-1">
-              <li>EMA Trend: EMA 10 > EMA 20 > EMA 50</li>
+              <li>EMA Trend: EMA 10 &gt; EMA 20 &gt; EMA 50</li>
               <li>RSI: Above 55, preferably below 80</li>
               <li>Stochastic RSI: Above 50, preferably with recent cross upward</li>
               <li>PCR: Below typical levels (varies by IV environment)</li>
@@ -191,7 +192,7 @@ const documentationSections = [
             </p>
             <h5 className="font-medium mb-1">Key Criteria:</h5>
             <ul className="list-disc list-inside space-y-1">
-              <li>EMA Trend: EMA 10 < EMA 20 < EMA 50</li>
+              <li>EMA Trend: EMA 10 &lt; EMA 20 &lt; EMA 50</li>
               <li>RSI: Below 45, preferably above 20</li>
               <li>Stochastic RSI: Below 50, preferably with recent cross downward</li>
               <li>PCR: Above typical levels (varies by IV environment)</li>
@@ -212,7 +213,7 @@ const documentationSections = [
               <li>RSI: Between 45-65 (middle range)</li>
               <li>Stochastic RSI: Between 25-75</li>
               <li>PCR: Between 0.8-1.2 (balanced)</li>
-              <li>IV Percentile: Low (< 40)</li>
+              <li>IV Percentile: Low (&lt; 40)</li>
               <li>Price near max pain: Within 2% of max pain price</li>
               <li>Options Confirmation: High gamma around current price (pinning)</li>
             </ul>
@@ -235,7 +236,7 @@ const documentationSections = [
             Best Practices
           </h3>
           <ul className="list-disc list-inside space-y-1">
-            <li>Look for setups with high strength scores (>70%)</li>
+            <li>Look for setups with high strength scores (&gt;70%)</li>
             <li>Prioritize setups where both technical and options criteria align</li>
             <li>Use the setup identification as the first step, followed by confirmation and risk management</li>
             <li>Monitor setups that are close to meeting criteria for potential future opportunities</li>
@@ -370,9 +371,9 @@ const documentationSections = [
               Adjusts position size based on current market volatility metrics to maintain consistent risk exposure.
             </p>
             <ul className="list-disc list-inside text-sm space-y-1">
-              <li><strong>High IV Environment (IV Percentile > 80%):</strong> Reduce position size by 20-30%</li>
+              <li><strong>High IV Environment (IV Percentile &gt; 80%):</strong> Reduce position size by 20-30%</li>
               <li><strong>Moderate IV Environment (IV Percentile 40-80%):</strong> Standard position size</li>
-              <li><strong>Low IV Environment (IV Percentile < 40%):</strong> Increase position size by 10-20%</li>
+              <li><strong>Low IV Environment (IV Percentile &lt; 40%):</strong> Increase position size by 10-20%</li>
             </ul>
           </div>
           
@@ -400,7 +401,7 @@ const documentationSections = [
             <ul className="list-disc list-inside text-sm space-y-1">
               <li><strong>Directional Trades (Bullish/Bearish):</strong> Minimum 2:1 risk/reward ratio</li>
               <li><strong>Neutral/Range-Bound Trades:</strong> Minimum 1.5:1 risk/reward ratio</li>
-              <li><strong>High-Probability Setups (>80% strength):</strong> Minimum 1.5:1 risk/reward ratio</li>
+              <li><strong>High-Probability Setups (&gt;80% strength):</strong> Minimum 1.5:1 risk/reward ratio</li>
             </ul>
           </div>
           
@@ -651,7 +652,7 @@ const documentationSections = [
             <ul className="list-disc list-inside text-sm space-y-1">
               <li><strong>Setup Type:</strong> Bullish</li>
               <li><strong>RSI:</strong> 50-70</li>
-              <li><strong>Stochastic RSI:</strong> >60</li>
+              <li><strong>Stochastic RSI:</strong> &gt;60</li>
               <li><strong>PCR:</strong> 0.5-1.0</li>
               <li><strong>Greek Analytics:</strong> Include Gamma</li>
             </ul>
@@ -662,7 +663,7 @@ const documentationSections = [
             <ul className="list-disc list-inside text-sm space-y-1">
               <li><strong>Setup Type:</strong> Bearish</li>
               <li><strong>RSI:</strong> 30-50</li>
-              <li><strong>Stochastic RSI:</strong> <40</li>
+              <li><strong>Stochastic RSI:</strong> &lt;40</li>
               <li><strong>PCR:</strong> 1.0-1.5</li>
               <li><strong>Greek Analytics:</strong> Include Gamma</li>
             </ul>
@@ -993,7 +994,7 @@ export default function GuidePage() {
             <Tabs defaultValue="documentation" className="w-full">
               <TabsList className="mb-2">
                 <TabsTrigger value="documentation" className="flex items-center">
-                  <BookText className="h-4 w-4 mr-2" />
+                  <Book className="h-4 w-4 mr-2" />
                   Documentation
                 </TabsTrigger>
                 <TabsTrigger value="faq" className="flex items-center">
@@ -1098,7 +1099,7 @@ export default function GuidePage() {
                           <li>Select "All Tickers" to scan the entire database</li>
                           <li>Choose a setup type based on your market analysis</li>
                           <li>Click "Run Scanner" to find potential opportunities</li>
-                          <li>Focus on setups with strength >70%</li>
+                          <li>Focus on setups with strength &gt;70%</li>
                         </ol>
                         <Button asChild className="mt-2">
                           <Link href="/scanner">

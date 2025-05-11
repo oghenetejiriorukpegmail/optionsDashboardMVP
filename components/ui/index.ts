@@ -8,3 +8,4 @@ export * from "./tabs";
 export * from "./select";
 export * from "./badge";
 export * from "./tooltip";
+export * from "./scroll-area";
