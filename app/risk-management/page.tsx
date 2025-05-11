@@ -76,11 +76,18 @@ export default function RiskManagement() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Risk Management</h1>
-        <p className="text-muted-foreground">
-          Protect capital with disciplined risk management rules
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="rounded-full w-8 h-8 bg-amber-500/10 flex items-center justify-center">
+              <Shield className="h-5 w-5 text-amber-500" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">Risk Management</h1>
+          </div>
+          <p className="text-muted-foreground mt-1">
+            Protect capital with disciplined risk management rules
+          </p>
+        </div>
       </div>
 
       <Tabs defaultValue="position-sizing" className="w-full">

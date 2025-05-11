@@ -227,11 +227,16 @@ export default function KeyLevels() {
   }, [symbol, expiration]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-between items-center">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Key Levels Mapping</h1>
-          <p className="text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <div className="rounded-full w-8 h-8 bg-indigo-500/10 flex items-center justify-center">
+              <LineChart className="h-5 w-5 text-indigo-500" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">Key Levels Mapping</h1>
+          </div>
+          <p className="text-muted-foreground mt-1">
             Identify critical price levels using options chain data and technical analysis
           </p>
         </div>

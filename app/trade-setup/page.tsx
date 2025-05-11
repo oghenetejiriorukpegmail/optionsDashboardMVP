@@ -110,11 +110,20 @@ export default function TradeSetup() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-3xl font-bold tracking-tight">Trade Setup Rules</h1>
-      <p className="text-muted-foreground">
-        Define conditions for bullish, bearish, and neutral trading opportunities
-      </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="rounded-full w-8 h-8 bg-green-500/10 flex items-center justify-center">
+              <Target className="h-5 w-5 text-green-500" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">Trade Setup Rules</h1>
+          </div>
+          <p className="text-muted-foreground mt-1">
+            Define conditions for bullish, bearish, and neutral trading opportunities
+          </p>
+        </div>
+      </div>
 
       <Tabs defaultValue="bullish" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
