@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { LineChart } from "lucide-react";
 import ChartJSOptionsChain from "@/components/charts/chart-js-options-chain";
 import ChartJSTechnical from "@/components/charts/chart-js-technical";
 import EnhancedOptionsChain from "@/components/charts/enhanced/EnhancedOptionsChain";
