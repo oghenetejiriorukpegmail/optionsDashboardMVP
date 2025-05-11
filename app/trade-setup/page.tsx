@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Target } from "lucide-react";
 import TechnicalRulesVisualizer from "@/components/trade-setup/TechnicalRulesVisualizer";
 import OptionsRulesVisualizer from "@/components/trade-setup/OptionsRulesVisualizer";
 
