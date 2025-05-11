@@ -69,7 +69,11 @@ export default function Home() {
       icon: <BarChart3 className="h-5 w-5" />,
       path: '/market-context',
       status: 'Live',
-      metrics: 'EMA Trends, RSI, PCR Analysis'
+      metrics: 'EMA Trends, RSI, PCR Analysis',
+      color: 'blue',
+      iconBg: 'bg-blue-500/10',
+      iconColor: 'text-blue-500',
+      borderColor: 'border-l-blue-500'
     },
     {
       title: 'Trade Setups',
@@ -77,7 +81,11 @@ export default function Home() {
       icon: <Target className="h-5 w-5" />,
       path: '/trade-setup',
       status: 'Live',
-      metrics: 'Pattern Recognition, OI Analysis'
+      metrics: 'Pattern Recognition, OI Analysis',
+      color: 'green',
+      iconBg: 'bg-green-500/10',
+      iconColor: 'text-green-500',
+      borderColor: 'border-l-green-500'
     },
     {
       title: 'Confirmation',
@@ -85,7 +93,11 @@ export default function Home() {
       icon: <CheckCircle className="h-5 w-5" />,
       path: '/confirmation',
       status: 'Live',
-      metrics: 'Technical Signals, Options Validation'
+      metrics: 'Technical Signals, Options Validation',
+      color: 'purple',
+      iconBg: 'bg-purple-500/10',
+      iconColor: 'text-purple-500',
+      borderColor: 'border-l-purple-500'
     },
     {
       title: 'Risk Management',
@@ -93,7 +105,11 @@ export default function Home() {
       icon: <Shield className="h-5 w-5" />,
       path: '/risk-management',
       status: 'Live',
-      metrics: 'Position Sizing, R:R Calculation'
+      metrics: 'Position Sizing, R:R Calculation',
+      color: 'amber',
+      iconBg: 'bg-amber-500/10',
+      iconColor: 'text-amber-500',
+      borderColor: 'border-l-amber-500'
     },
     {
       title: 'Key Levels',
@@ -101,7 +117,11 @@ export default function Home() {
       icon: <LineChart className="h-5 w-5" />,
       path: '/key-levels',
       status: 'Live',
-      metrics: 'Options Chain, Max Pain, Greeks'
+      metrics: 'Options Chain, Max Pain, Greeks',
+      color: 'indigo',
+      iconBg: 'bg-indigo-500/10',
+      iconColor: 'text-indigo-500',
+      borderColor: 'border-l-indigo-500'
     },
     {
       title: 'Scanner',
@@ -109,22 +129,37 @@ export default function Home() {
       icon: <Search className="h-5 w-5" />,
       path: '/scanner',
       status: 'Live',
-      metrics: 'Hybrid Analysis, Custom Filters'
+      metrics: 'Hybrid Analysis, Custom Filters',
+      color: 'sky',
+      iconBg: 'bg-sky-500/10',
+      iconColor: 'text-sky-500',
+      borderColor: 'border-l-sky-500'
     }
   ];
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Options-Technical Hybrid Dashboard</h1>
-        <p className="text-muted-foreground">
-          A comprehensive trading platform combining options analytics and technical analysis for identifying high-probability trade opportunities.
-        </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Options-Technical Hybrid Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            A comprehensive trading platform combining options analytics and technical analysis for identifying high-probability trade opportunities.
+          </p>
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button asChild className="w-full sm:w-auto">
+            <Link href="/scanner">
+              <Search className="mr-2 h-4 w-4" />
+              Advanced Scanner
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-background to-muted/50 relative overflow-hidden border">
+          <div className="absolute right-0 top-0 -mt-4 -mr-4 h-16 w-16 rounded-full bg-primary/10 blur-xl"></div>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Total Tickers</CardTitle>
           </CardHeader>
@@ -141,8 +176,9 @@ export default function Home() {
             </p>
           </CardContent>
         </Card>
-        
-        <Card>
+
+        <Card className="bg-gradient-to-br from-background to-muted/50 relative overflow-hidden border">
+          <div className="absolute left-0 bottom-0 -mb-4 -ml-4 h-16 w-16 rounded-full bg-primary/10 blur-xl"></div>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Setup Distribution</CardTitle>
           </CardHeader>
@@ -156,7 +192,7 @@ export default function Home() {
                     <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                     Bullish
                   </span>
-                  <Badge variant="outline" className="text-green-600">
+                  <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800">
                     {stats.bullishSetups}
                   </Badge>
                 </div>
@@ -165,7 +201,7 @@ export default function Home() {
                     <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
                     Bearish
                   </span>
-                  <Badge variant="outline" className="text-red-600">
+                  <Badge variant="outline" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border-red-200 dark:border-red-800">
                     {stats.bearishSetups}
                   </Badge>
                 </div>
@@ -174,7 +210,7 @@ export default function Home() {
                     <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
                     Neutral
                   </span>
-                  <Badge variant="outline" className="text-yellow-600">
+                  <Badge variant="outline" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border-yellow-200 dark:border-yellow-800">
                     {stats.neutralSetups}
                   </Badge>
                 </div>
@@ -182,8 +218,9 @@ export default function Home() {
             )}
           </CardContent>
         </Card>
-        
-        <Card>
+
+        <Card className="bg-gradient-to-br from-background to-muted/50 relative overflow-hidden border">
+          <div className="absolute right-0 bottom-0 -mb-4 -mr-4 h-16 w-16 rounded-full bg-primary/10 blur-xl"></div>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
           </CardHeader>
@@ -204,8 +241,9 @@ export default function Home() {
             </div>
           </CardContent>
         </Card>
-        
-        <Card>
+
+        <Card className="bg-gradient-to-br from-background to-muted/50 relative overflow-hidden border">
+          <div className="absolute left-0 top-0 -mt-4 -ml-4 h-16 w-16 rounded-full bg-primary/10 blur-xl"></div>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Data Status</CardTitle>
           </CardHeader>
@@ -226,18 +264,32 @@ export default function Home() {
       </div>
 
       {/* Feature Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {features.map((feature, index) => (
-          <Card key={index} className="overflow-hidden">
+          <Card
+            key={index}
+            className={`overflow-hidden bg-gradient-to-br from-background to-muted/50 relative border-l-4 ${feature.borderColor}`}
+          >
+            <div className="absolute right-0 top-0 -mt-4 -mr-4 h-16 w-16 rounded-full bg-primary/10 blur-xl"></div>
+            <div className="absolute left-0 bottom-0 -mb-4 -ml-4 h-16 w-16 rounded-full bg-primary/10 blur-xl"></div>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-md font-bold flex items-center">
-                  <span className="rounded-full w-8 h-8 bg-primary/10 flex items-center justify-center mr-2">
-                    {feature.icon}
+                  <span className={`rounded-full w-8 h-8 ${feature.iconBg} flex items-center justify-center mr-2`}>
+                    <span className={feature.iconColor}>{feature.icon}</span>
                   </span>
                   {feature.title}
                 </CardTitle>
-                <Badge>{feature.status}</Badge>
+                <Badge variant="outline" className={`${
+                    feature.color === 'blue' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800' :
+                    feature.color === 'green' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800' :
+                    feature.color === 'purple' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-200 dark:border-purple-800' :
+                    feature.color === 'amber' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800' :
+                    feature.color === 'indigo' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800' :
+                    'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200 border-sky-200 dark:border-sky-800'
+                  }`}>
+                  {feature.status}
+                </Badge>
               </div>
               <CardDescription>{feature.description}</CardDescription>
             </CardHeader>
@@ -247,10 +299,14 @@ export default function Home() {
               </p>
             </CardContent>
             <CardFooter className="pt-0">
-              <Button asChild>
+              <Button
+                asChild
+                variant="outline"
+                className="w-full group border border-transparent hover:border-primary/20"
+              >
                 <Link href={feature.path} className="w-full flex items-center justify-center">
-                  <span>Open</span>
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <span>View {feature.title}</span>
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
               </Button>
             </CardFooter>
@@ -259,33 +315,43 @@ export default function Home() {
       </div>
       
       {/* Additional Information */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card className="bg-gradient-to-br from-background to-muted/50 relative overflow-hidden border">
+          <div className="absolute right-0 top-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-primary/10 blur-xl"></div>
+          <div className="absolute left-0 bottom-0 -mb-8 -ml-8 h-24 w-24 rounded-full bg-primary/20 blur-xl"></div>
           <CardHeader>
-            <CardTitle>About This Dashboard</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <PieChart className="h-5 w-5" />
+              About This Dashboard
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm">
-              This dashboard combines options data analytics with technical analysis to identify high-probability trading opportunities. 
-              By analyzing options chain data, implied volatility, and technical indicators, the platform provides a comprehensive 
+              This dashboard combines options data analytics with technical analysis to identify high-probability trading opportunities.
+              By analyzing options chain data, implied volatility, and technical indicators, the platform provides a comprehensive
               approach to options trading.
             </p>
-            <div className="flex items-center mt-4">
-              <Badge variant="secondary" className="mr-2">Options Chain Analysis</Badge>
-              <Badge variant="secondary" className="mr-2">Technical Patterns</Badge>
-              <Badge variant="secondary">Sentiment Metrics</Badge>
+            <div className="flex flex-wrap items-center gap-2 mt-4">
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Options Chain Analysis</Badge>
+              <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Technical Patterns</Badge>
+              <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Sentiment Metrics</Badge>
             </div>
           </CardContent>
         </Card>
-        
-        <Card>
+
+        <Card className="bg-gradient-to-br from-background to-muted/50 relative overflow-hidden border">
+          <div className="absolute right-0 bottom-0 -mb-4 -mr-4 h-24 w-24 rounded-full bg-primary/10 blur-xl"></div>
+          <div className="absolute left-0 top-0 -mt-8 -ml-8 h-24 w-24 rounded-full bg-primary/20 blur-xl"></div>
           <CardHeader>
-            <CardTitle>Getting Started</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Getting Started
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-start">
-              <div className="bg-primary/10 p-2 rounded-full mr-3">
-                <BarChart3 className="h-4 w-4 text-primary" />
+              <div className="bg-blue-500/10 p-2 rounded-full mr-3">
+                <BarChart3 className="h-4 w-4 text-blue-500" />
               </div>
               <div>
                 <h3 className="text-sm font-medium">Begin with Market Context</h3>
@@ -293,8 +359,8 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-start">
-              <div className="bg-primary/10 p-2 rounded-full mr-3">
-                <Search className="h-4 w-4 text-primary" />
+              <div className="bg-sky-500/10 p-2 rounded-full mr-3">
+                <Search className="h-4 w-4 text-sky-500" />
               </div>
               <div>
                 <h3 className="text-sm font-medium">Run the Scanner</h3>
@@ -302,15 +368,15 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-start">
-              <div className="bg-primary/10 p-2 rounded-full mr-3">
-                <Shield className="h-4 w-4 text-primary" />
+              <div className="bg-amber-500/10 p-2 rounded-full mr-3">
+                <Shield className="h-4 w-4 text-amber-500" />
               </div>
               <div>
                 <h3 className="text-sm font-medium">Apply Risk Management</h3>
                 <p className="text-xs text-muted-foreground">Calculate appropriate position sizes and risk levels</p>
               </div>
             </div>
-            <Button asChild className="w-full mt-2">
+            <Button asChild className="w-full mt-2 bg-gradient-to-r from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600">
               <Link href="/scanner">Start Scanning <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
           </CardContent>
