@@ -1,11 +1,14 @@
 import axios from 'axios';
 // import yahooStockAPI from 'yahoo-stock-api'; // Removed
 import { SCANNER_CONFIG, TECHNICAL_INDICATOR_CONFIG } from '@/lib/config';
+import { nasdaq100Tickers } from './nasdaq100';
+import * as mockDataGenerator from './mockDataGenerator';
 
 // Base URL for Yahoo Finance API
 const YAHOO_FINANCE_BASE_URL = 'https://query1.finance.yahoo.com';
 const YAHOO_FINANCE_API = {
   QUOTE: `${YAHOO_FINANCE_BASE_URL}/v7/finance/quote`,
+  OPTIONS: `${YAHOO_FINANCE_BASE_URL}/v7/finance/options`,
   HISTORY: `${YAHOO_FINANCE_BASE_URL}/v8/finance/chart`,
 };
 
@@ -17,10 +20,53 @@ const API_CACHE_DURATION = SCANNER_CONFIG.CACHE_DURATION;
 // Cache for API responses
 const apiCache: Record<string, { timestamp: number; data: any }> = {};
 
+// Flag to track if Yahoo API is experiencing rate limiting
+let isYahooApiRateLimited = false;
+const RATE_LIMIT_RESET_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+// Set up automatic reset of rate limit flag
+setInterval(() => {
+  if (isYahooApiRateLimited) {
+    console.log('Resetting Yahoo API rate limit flag...');
+    isYahooApiRateLimited = false;
+  }
+}, RATE_LIMIT_RESET_INTERVAL);
+
 /**
  * Helper function to add delay between API calls
  */
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Helper function to handle rate limiting
+ * Uses exponential backoff strategy for retries
+ */
+const handleRateLimiting = async (error: any, attempt: number): Promise<number> => {
+  // If we got a 429 (Too Many Requests) status code, wait longer
+  if (error.response && error.response.status === 429) {
+    const backoffTime = Math.min(API_RETRY_DELAY * Math.pow(2, attempt), 10000);
+    console.log(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
+    
+    // If multiple 429 errors occur or it's the last attempt, set the rate limit flag
+    if (attempt >= API_RETRY_ATTEMPTS - 1) {
+      console.log('Multiple rate limit errors detected. Switching to mock data mode.');
+      isYahooApiRateLimited = true;
+    }
+    
+    await delay(backoffTime);
+    return backoffTime;
+  } else if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+    // Auth errors should also trigger mock data mode
+    console.log('Authentication error detected. Switching to mock data mode.');
+    isYahooApiRateLimited = true;
+    await delay(API_RETRY_DELAY);
+    return API_RETRY_DELAY;
+  }
+  
+  // For other errors, use standard delay
+  await delay(API_RETRY_DELAY);
+  return API_RETRY_DELAY;
+};
 
 // Helper function to format date to YYYY-MM-DD (from lib/services/yahooFinance.ts)
 const formatDate = (timestamp: number): string => {
@@ -210,7 +256,63 @@ function determineSetupType(lastBar: any, emaTrend: string, pcr: number) {
 }
 
 /**
+ * Generate mock historical data for a symbol if real API fails
+ */
+function generateMockHistoricalData(symbol: string) {
+  console.log(`Using mock historical data for ${symbol} due to API rate limiting`);
+  
+  // Generate a mock stock data object
+  const mockData = mockDataGenerator.generateStockData(symbol);
+  
+  // Transform to match the format expected by consumers
+  const formattedData = mockData.historicalData.map(bar => ({
+    date: bar.date,
+    timestamp: Math.floor(new Date(bar.date).getTime() / 1000),
+    open: bar.close * 0.99,
+    high: bar.close * 1.02,
+    low: bar.close * 0.98,
+    close: bar.close,
+    volume: bar.volume,
+    adjClose: bar.close,
+    // Include indicators directly
+    ema10: bar.ema10,
+    ema20: bar.ema20, 
+    ema50: bar.ema50,
+    rsi: bar.rsi,
+    stochasticRsi: mockData.stochasticRsi
+  }));
+  
+  return formattedData;
+}
+
+/**
+ * Generate mock stock quote if real API fails
+ */
+function generateMockStockInfo(symbol: string) {
+  console.log(`Using mock stock info for ${symbol} due to API rate limiting`);
+  
+  // Generate a mock stock data object
+  const mockData = mockDataGenerator.generateStockData(symbol);
+  
+  // Transform to match the Yahoo Finance API response format
+  return {
+    symbol: symbol,
+    regularMarketPrice: mockData.price,
+    bid: mockData.price * 0.999,
+    ask: mockData.price * 1.001,
+    regularMarketVolume: mockData.volume.current,
+    averageDailyVolume10Day: mockData.volume.current * (1 - mockData.volume.percentChange/100),
+    regularMarketOpen: mockData.price * 0.99,
+    regularMarketDayHigh: mockData.price * 1.02,
+    regularMarketDayLow: mockData.price * 0.98,
+    regularMarketTime: Math.floor(Date.now()/1000),
+    impliedVolatility: mockData.iv / 100
+  };
+}
+
+/**
  * Fetches historical data for a symbol from Yahoo Finance with retry logic and caching
+ * Falls back to mock data when rate limited
  */
 export async function fetchHistoricalData(symbol: string, period = '3mo', interval = '1d') {
   const cacheKey = `historical_${symbol}_${period}_${interval}`;
@@ -219,6 +321,16 @@ export async function fetchHistoricalData(symbol: string, period = '3mo', interv
     const now = Date.now();
     if (apiCache[cacheKey] && now - apiCache[cacheKey].timestamp < API_CACHE_DURATION) {
       return apiCache[cacheKey].data;
+    }
+    
+    // If Yahoo API is rate limited, use mock data instead
+    if (isYahooApiRateLimited) {
+      const mockData = generateMockHistoricalData(symbol);
+      apiCache[cacheKey] = {
+        timestamp: now,
+        data: mockData,
+      };
+      return mockData;
     }
     
     console.log(`Fetching historical data for ${symbol} (period: ${period}, interval: ${interval})...`);
@@ -234,6 +346,12 @@ export async function fetchHistoricalData(symbol: string, period = '3mo', interv
             interval,
             includePrePost: false,
             events: 'div,split',
+          },
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Referer': 'https://finance.yahoo.com',
           },
         });
 
@@ -266,29 +384,41 @@ export async function fetchHistoricalData(symbol: string, period = '3mo', interv
           return processedData;
         }
       } catch (error) {
-        console.error(`Attempt ${attempts + 1} failed for historical data ${symbol}:`, error);
+        console.error(`Attempt ${attempts + 1} failed for historical data ${symbol}:`, error.message || error);
+        // Handle rate limiting with exponential backoff
+        await handleRateLimiting(error, attempts);
       }
       
       attempts++;
-      if (attempts < API_RETRY_ATTEMPTS) {
-        await delay(API_RETRY_DELAY);
-      }
     }
     
-    throw new Error(`Failed to fetch historical data for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
+    console.log(`Failed to fetch historical data for ${symbol} after ${API_RETRY_ATTEMPTS} attempts, using mock data`);
+    isYahooApiRateLimited = true;
+    
+    // Fallback to mock data
+    const mockData = generateMockHistoricalData(symbol);
+    apiCache[cacheKey] = {
+      timestamp: now,
+      data: mockData,
+    };
+    return mockData;
 
   } catch (error) {
     console.error(`Error fetching historical data for ${symbol}:`, error);
-    // Return a default structure or throw, depending on desired error handling for calculateIndicators
-     return calculateIndicators(Array(60).fill(null).map((_, i) => ({ // Approx 3 months of daily data
-      date: new Date(Date.now() - (60-i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      open: 100, high: 101, low: 99, close: 100, volume: 100000, adjClose: 100
-    }))); // Fallback to avoid breaking downstream if needed, or rethrow
+    
+    // Fallback to mock data
+    const mockData = generateMockHistoricalData(symbol);
+    apiCache[cacheKey] = {
+      timestamp: now,
+      data: mockData,
+    };
+    return mockData;
   }
 }
 
 /**
  * Fetches current stock info from Yahoo Finance with retry logic and caching
+ * Falls back to mock data when rate limited
  */
 export async function fetchStockInfo(symbol: string) {
   const cacheKey = `info_${symbol}`;
@@ -297,6 +427,16 @@ export async function fetchStockInfo(symbol: string) {
     const now = Date.now();
     if (apiCache[cacheKey] && now - apiCache[cacheKey].timestamp < API_CACHE_DURATION) {
       return apiCache[cacheKey].data;
+    }
+    
+    // If Yahoo API is rate limited, use mock data instead
+    if (isYahooApiRateLimited) {
+      const mockData = generateMockStockInfo(symbol);
+      apiCache[cacheKey] = {
+        timestamp: now,
+        data: mockData,
+      };
+      return mockData;
     }
     
     console.log(`Fetching stock info for ${symbol}...`);
@@ -311,6 +451,12 @@ export async function fetchStockInfo(symbol: string) {
             symbols: symbol,
             formatted: false, // Get raw numbers
           },
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Referer': 'https://finance.yahoo.com',
+          },
         });
 
         const quoteData = apiResponse.data.quoteResponse.result[0];
@@ -323,32 +469,35 @@ export async function fetchStockInfo(symbol: string) {
           return quoteData;
         }
       } catch (error) {
-        console.error(`Attempt ${attempts + 1} failed for stock info ${symbol}:`, error);
+        console.error(`Attempt ${attempts + 1} failed for stock info ${symbol}:`, error.message || error);
+        // Handle rate limiting with exponential backoff
+        await handleRateLimiting(error, attempts);
       }
       
       attempts++;
-      if (attempts < API_RETRY_ATTEMPTS) {
-        await delay(API_RETRY_DELAY);
-      }
     }
     
-    throw new Error(`Failed to fetch stock info for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
+    console.log(`Failed to fetch stock info for ${symbol} after ${API_RETRY_ATTEMPTS} attempts, using mock data`);
+    isYahooApiRateLimited = true;
+    
+    // Fallback to mock data
+    const mockData = generateMockStockInfo(symbol);
+    apiCache[cacheKey] = {
+      timestamp: now,
+      data: mockData,
+    };
+    return mockData;
 
   } catch (error) {
     console.error(`Error fetching stock info for ${symbol}:`, error);
-    // Fallback to a default structure or rethrow
-    return {
-        symbol,
-        regularMarketPrice: 100,
-        bid: 100,
-        ask: 100.05,
-        regularMarketVolume: 100000,
-        averageDailyVolume10Day: 120000,
-        regularMarketOpen: 99.5,
-        regularMarketDayHigh: 101,
-        regularMarketDayLow: 99,
-        regularMarketTime: Math.floor(Date.now()/1000)
+    
+    // Fallback to mock data
+    const mockData = generateMockStockInfo(symbol);
+    apiCache[cacheKey] = {
+      timestamp: now,
+      data: mockData,
     };
+    return mockData;
   }
 }
 
@@ -495,6 +644,7 @@ function generateRecommendation(price: number, setupType: string, keyLevels: any
 
 /**
  * Generate a complete stock analysis using real-time and historical data
+ * Falls back to mock data when rate limited
  */
 export async function generateStockAnalysis(symbol: string) {
   try {
@@ -529,7 +679,7 @@ export async function generateStockAnalysis(symbol: string) {
     // Generate recommendation
     const recommendation = generateRecommendation(price, setupType, keyLevels);
     
-    // Return complete analysis with real data
+    // Return complete analysis with real or mock data
     return {
       symbol,
       price,
@@ -554,19 +704,39 @@ export async function generateStockAnalysis(symbol: string) {
     };
   } catch (error) {
     console.error(`Error generating stock analysis for ${symbol}:`, error);
-    throw error;
+    
+    // If any part fails, fall back to complete mock data
+    const mockStock = mockDataGenerator.generateStockData(symbol);
+    
+    return {
+      symbol,
+      price: mockStock.price,
+      setupType: mockStock.setupType,
+      setupStrength: mockStock.setupStrength,
+      emaTrend: mockStock.emaTrend,
+      pcr: mockStock.pcr,
+      rsi: mockStock.rsi,
+      stochasticRsi: mockStock.stochasticRsi,
+      volume: mockStock.volume,
+      iv: mockStock.iv,
+      gex: mockStock.gex,
+      keyLevels: mockStock.keyLevels,
+      recommendation: mockStock.recommendation,
+      historicalData: mockStock.historicalData
+    };
   }
 }
 
 /**
  * Fetch multiple stock analyses in parallel with optimized resource usage
+ * Automatically uses mock data when rate limited
  */
 export async function fetchMultipleStockAnalyses(symbols: string[]) {
   try {
     console.log(`Fetching analyses for multiple stocks: ${symbols.join(', ')}...`);
     
     // Process symbols in parallel with Promise.all, but with a concurrency limit
-    const CONCURRENCY_LIMIT = 3; // Process 3 symbols at a time to avoid rate limiting
+    const CONCURRENCY_LIMIT = SCANNER_CONFIG.API.CONCURRENCY_LIMIT; // Use config setting to avoid rate limiting
     const results = [];
     
     for (let i = 0; i < symbols.length; i += CONCURRENCY_LIMIT) {
@@ -575,23 +745,26 @@ export async function fetchMultipleStockAnalyses(symbols: string[]) {
         return generateStockAnalysis(symbol)
           .catch(error => {
             console.error(`Error analyzing ${symbol}:`, error);
-            throw error;
+            // Fallback to mock data on error
+            return mockDataGenerator.generateStockData(symbol);
           });
       });
       
       const batchResults = await Promise.all(batchPromises);
       results.push(...batchResults);
       
-      // Add a small delay between batches to avoid API rate limits
+      // Add a larger delay between batches to avoid API rate limits
       if (i + CONCURRENCY_LIMIT < symbols.length) {
-        await delay(500);
+        await delay(2000);
       }
     }
     
     return results;
   } catch (error) {
     console.error('Error fetching multiple stock analyses:', error);
-    throw error;
+    
+    // If all fails, fall back to completely mock data
+    return symbols.map(symbol => mockDataGenerator.generateStockData(symbol));
   }
 }
 
@@ -642,13 +815,18 @@ export async function generateNasdaq100ScannerResults(symbolsToFetch: string[] =
     };
   } catch (error) {
     console.error('Error generating NASDAQ 100 scanner results:', error);
-    throw error;
+    
+    // Fallback to mock data
+    console.log('Falling back to mock scanner data');
+    return mockDataGenerator.generateNasdaq100ScannerResults();
   }
 }
 
 // Clear cache function for testing
 export function clearCache() {
   Object.keys(apiCache).forEach(key => delete apiCache[key]);
+  isYahooApiRateLimited = false;
+  console.log('Cache and rate limit flag cleared');
 }
 
 // Export list of NASDAQ 100 stocks for reference

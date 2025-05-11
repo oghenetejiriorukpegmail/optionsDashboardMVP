@@ -6,22 +6,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { 
-  BadgeCheck, 
-  AlertTriangle, 
-  Info, 
-  RefreshCw, 
-  Calculator, 
-  DollarSign, 
-  ArrowRightLeft, 
-  Minus, 
-  TrendingUp, 
-  TrendingDown, 
-  CheckCircle 
-} from "lucide-react";
+import { BadgeCheck, AlertTriangle, Info, RefreshCw, Calculator, DollarSign, ArrowRightLeft, Minus, TrendingUp, TrendingDown, CheckCircle } from "lucide-react";
 import { RiskCalculator } from "@/components/risk-management/risk-calculator";
 
-export default function RiskManagement() {
+export function RiskManagementClient() {
   // Mock data for risk calculator
   const aapl = {
     symbol: "AAPL",

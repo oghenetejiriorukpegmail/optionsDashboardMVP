@@ -911,9 +911,8 @@ export function ScannerDashboard() {
                             </div>
                           )}
                         </CardContent>
-                        </Card>
-                      );
-                    })}
+                      </Card>
+                    ))}
 
                     {Object.keys(filteredResults).length === 0 && (
                       <div className="col-span-3 py-12 text-center text-muted-foreground">

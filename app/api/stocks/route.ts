@@ -18,7 +18,8 @@ export async function GET() {
       console.log('Fetching fresh stocks data from Yahoo Finance...');
       
       // List of most popular stocks (subset of NASDAQ 100)
-      const symbols = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA', 'META', 'NVDA', 'PYPL', 'NFLX', 'INTC'];
+      // Starting with just a few to avoid rate limiting
+      const symbols = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA'];
       
       // Fetch data for all symbols
       const stocksData = await fetchMultipleStockAnalyses(symbols);

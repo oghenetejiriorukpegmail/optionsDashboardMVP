@@ -1,105 +1,160 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import TechnicalRulesVisualizer from "@/components/trade-setup/TechnicalRulesVisualizer";
+import OptionsRulesVisualizer from "@/components/trade-setup/OptionsRulesVisualizer";
 
 export default function TradeSetup() {
+  // Sample data for the visualizations
+  const [technicalData] = useState({
+    dates: ['2025-04-01', '2025-04-02', '2025-04-03', '2025-04-04', '2025-04-07',
+           '2025-04-08', '2025-04-09', '2025-04-10', '2025-04-11', '2025-04-14'],
+    prices: [295.75, 297.25, 296.50, 298.80, 301.20, 303.50, 305.75, 307.25, 304.50, 306.75],
+    ema10: [293.50, 294.25, 295.10, 296.30, 297.50, 298.80, 300.20, 301.60, 302.30, 303.10],
+    ema20: [290.25, 291.10, 291.80, 292.60, 293.40, 294.30, 295.20, 296.10, 296.80, 297.60],
+    ema50: [285.50, 286.20, 286.80, 287.40, 288.10, 288.80, 289.50, 290.20, 290.80, 291.50],
+    rsi: [62.5, 65.2, 63.8, 67.1, 70.5, 72.3, 74.8, 76.5, 68.2, 71.5],
+    volume: [12500000, 13200000, 11800000, 14500000, 18200000, 20500000, 19800000, 17500000, 16200000, 15800000],
+  });
+
+  const [optionsData] = useState({
+    strikes: [
+      {
+        strike: 270,
+        calls: { openInterest: 5800, volume: 950, iv: 42.5 },
+        puts: { openInterest: 12500, volume: 2100, iv: 45.2 }
+      },
+      {
+        strike: 280,
+        calls: { openInterest: 7200, volume: 1250, iv: 40.8 },
+        puts: { openInterest: 14800, volume: 2550, iv: 43.5 }
+      },
+      {
+        strike: 290,
+        calls: { openInterest: 9500, volume: 1850, iv: 38.2 },
+        puts: { openInterest: 16200, volume: 3100, iv: 41.8 }
+      },
+      {
+        strike: 300,
+        calls: { openInterest: 15800, volume: 3550, iv: 36.5 },
+        puts: { openInterest: 10500, volume: 2250, iv: 39.2 }
+      },
+      {
+        strike: 310,
+        calls: { openInterest: 18200, volume: 4200, iv: 38.8 },
+        puts: { openInterest: 7800, volume: 1750, iv: 40.5 }
+      },
+      {
+        strike: 320,
+        calls: { openInterest: 12500, volume: 2850, iv: 40.2 },
+        puts: { openInterest: 5200, volume: 1100, iv: 42.8 }
+      },
+      {
+        strike: 330,
+        calls: { openInterest: 8800, volume: 1650, iv: 42.5 },
+        puts: { openInterest: 3500, volume: 780, iv: 45.2 }
+      }
+    ],
+    currentPrice: 306.75,
+    pcr: 0.75,
+    ivPercentile: 45,
+    ivSkew: 1.2,
+    maxPain: 300,
+    gex: 650000
+  });
+
+  // Technical rules data
+  const bullishTechRules = {
+    emaAlignment: true,
+    rsiCondition: true,
+    volumeTrend: true,
+    priceBreakout: true
+  };
+
+  const bearishTechRules = {
+    emaAlignment: false,
+    rsiCondition: false,
+    volumeTrend: true,
+    priceBreakout: false
+  };
+
+  const neutralTechRules = {
+    emaAlignment: false,
+    rsiCondition: true,
+    volumeTrend: false,
+    priceBreakout: true
+  };
+
+  // Options rules data
+  const bullishOptionsRules = {
+    pcrThreshold: true,
+    openInterestPattern: true,
+    ivCondition: true,
+    gexAlignment: true
+  };
+
+  const bearishOptionsRules = {
+    pcrThreshold: false,
+    openInterestPattern: true,
+    ivCondition: false,
+    gexAlignment: false
+  };
+
+  const neutralOptionsRules = {
+    pcrThreshold: false,
+    openInterestPattern: true,
+    ivCondition: true,
+    gexAlignment: true
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-3xl font-bold tracking-tight">Trade Setup Rules</h1>
       <p className="text-muted-foreground">
         Define conditions for bullish, bearish, and neutral trading opportunities
       </p>
-      
+
       <Tabs defaultValue="bullish" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="bullish">Bullish Setups</TabsTrigger>
           <TabsTrigger value="bearish">Bearish Setups</TabsTrigger>
           <TabsTrigger value="neutral">Neutral Setups</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="bullish" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Technical Conditions</CardTitle>
-                <CardDescription>
-                  Technical indicators for bullish setups
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[250px] w-full bg-slate-100 rounded-md flex items-center justify-center">
-                  <p className="text-muted-foreground">Bullish Technical Visualization</p>
-                </div>
-                
-                <div className="mt-4 space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">EMA Alignment</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Strong Bullish:</span>
-                      <span className="text-sm">10 EMA &gt; 20 EMA &gt; 50 EMA</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Moderate Bullish:</span>
-                      <span className="text-sm">10 EMA &gt; 20 EMA, 20 EMA ≈ 50 EMA</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">RSI Conditions</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Bullish Zone:</span>
-                      <span className="text-sm">RSI between 55-80</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Bullish Divergence:</span>
-                      <span className="text-sm">Price makes lower low, RSI makes higher low</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Options Conditions</CardTitle>
-                <CardDescription>
-                  Options indicators for bullish setups
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[250px] w-full bg-slate-100 rounded-md flex items-center justify-center">
-                  <p className="text-muted-foreground">Bullish Options Visualization</p>
-                </div>
-                
-                <div className="mt-4 space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">Put-Call Ratio (PCR)</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Bullish Signal:</span>
-                      <span className="text-sm">PCR &lt; 0.8 (more calls than puts)</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Extreme Bullish:</span>
-                      <span className="text-sm">PCR &lt; 0.6 (potential contrarian signal)</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">Open Interest Patterns</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Call Wall Above:</span>
-                      <span className="text-sm">High call OI at higher strikes</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Put Wall Below:</span>
-                      <span className="text-sm">High put OI at lower strikes</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Technical Conditions</CardTitle>
+              <CardDescription>
+                Technical indicators for bullish setups
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TechnicalRulesVisualizer
+                data={technicalData}
+                setupType="bullish"
+                rules={bullishTechRules}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Options Conditions</CardTitle>
+              <CardDescription>
+                Options indicators for bullish setups
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <OptionsRulesVisualizer
+                data={optionsData}
+                setupType="bullish"
+                rules={bullishOptionsRules}
+              />
+            </CardContent>
+          </Card>
           
           <Card>
             <CardHeader>
@@ -131,87 +186,37 @@ export default function TradeSetup() {
         </TabsContent>
         
         <TabsContent value="bearish" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Technical Conditions</CardTitle>
-                <CardDescription>
-                  Technical indicators for bearish setups
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[250px] w-full bg-slate-100 rounded-md flex items-center justify-center">
-                  <p className="text-muted-foreground">Bearish Technical Visualization</p>
-                </div>
-                
-                <div className="mt-4 space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">EMA Alignment</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Strong Bearish:</span>
-                      <span className="text-sm">10 EMA &lt; 20 EMA &lt; 50 EMA</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Moderate Bearish:</span>
-                      <span className="text-sm">10 EMA &lt; 20 EMA, 20 EMA ≈ 50 EMA</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">RSI Conditions</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Bearish Zone:</span>
-                      <span className="text-sm">RSI between 20-45</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Bearish Divergence:</span>
-                      <span className="text-sm">Price makes higher high, RSI makes lower high</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Options Conditions</CardTitle>
-                <CardDescription>
-                  Options indicators for bearish setups
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[250px] w-full bg-slate-100 rounded-md flex items-center justify-center">
-                  <p className="text-muted-foreground">Bearish Options Visualization</p>
-                </div>
-                
-                <div className="mt-4 space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">Put-Call Ratio (PCR)</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Bearish Signal:</span>
-                      <span className="text-sm">PCR &gt; 1.2 (more puts than calls)</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Extreme Bearish:</span>
-                      <span className="text-sm">PCR &gt; 1.5 (potential contrarian signal)</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">Open Interest Patterns</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Put Wall Below:</span>
-                      <span className="text-sm">High put OI at lower strikes</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Call Wall Below:</span>
-                      <span className="text-sm">High call OI at lower strikes</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Technical Conditions</CardTitle>
+              <CardDescription>
+                Technical indicators for bearish setups
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TechnicalRulesVisualizer
+                data={technicalData}
+                setupType="bearish"
+                rules={bearishTechRules}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Options Conditions</CardTitle>
+              <CardDescription>
+                Options indicators for bearish setups
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <OptionsRulesVisualizer
+                data={optionsData}
+                setupType="bearish"
+                rules={bearishOptionsRules}
+              />
+            </CardContent>
+          </Card>
           
           <Card>
             <CardHeader>
@@ -243,87 +248,37 @@ export default function TradeSetup() {
         </TabsContent>
         
         <TabsContent value="neutral" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Technical Conditions</CardTitle>
-                <CardDescription>
-                  Technical indicators for neutral setups
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[250px] w-full bg-slate-100 rounded-md flex items-center justify-center">
-                  <p className="text-muted-foreground">Neutral Technical Visualization</p>
-                </div>
-                
-                <div className="mt-4 space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">EMA Alignment</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Flat EMAs:</span>
-                      <span className="text-sm">10 EMA ≈ 20 EMA ≈ 50 EMA</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Converging EMAs:</span>
-                      <span className="text-sm">EMAs moving toward each other</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">RSI Conditions</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Neutral Zone:</span>
-                      <span className="text-sm">RSI between 45-55</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Oscillating RSI:</span>
-                      <span className="text-sm">RSI moving sideways in narrow range</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Options Conditions</CardTitle>
-                <CardDescription>
-                  Options indicators for neutral setups
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[250px] w-full bg-slate-100 rounded-md flex items-center justify-center">
-                  <p className="text-muted-foreground">Neutral Options Visualization</p>
-                </div>
-                
-                <div className="mt-4 space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">Put-Call Ratio (PCR)</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Neutral Signal:</span>
-                      <span className="text-sm">PCR between 0.8-1.2</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Balanced Flow:</span>
-                      <span className="text-sm">Similar call and put volume</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">Open Interest Patterns</h3>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">OI Concentration:</span>
-                      <span className="text-sm">High OI at current price level</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Low GEX:</span>
-                      <span className="text-sm">GEX near zero or balanced</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Technical Conditions</CardTitle>
+              <CardDescription>
+                Technical indicators for neutral setups
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TechnicalRulesVisualizer
+                data={technicalData}
+                setupType="neutral"
+                rules={neutralTechRules}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Options Conditions</CardTitle>
+              <CardDescription>
+                Options indicators for neutral setups
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <OptionsRulesVisualizer
+                data={optionsData}
+                setupType="neutral"
+                rules={neutralOptionsRules}
+              />
+            </CardContent>
+          </Card>
           
           <Card>
             <CardHeader>

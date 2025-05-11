@@ -46,11 +46,11 @@ The SQLite database includes these main tables:
 For each ticker, the application collects:
 
 1. **Stock Price Data**
-   - Current price every 10 seconds
+   - Current price every 1 hrs
    - Historical prices daily for calculating technical indicators
 
 2. **Options Data**
-   - Options chain every 15 minutes
+   - Options chain every hour
    - Open interest, volume, implied volatility, and Greeks
 
 3. **Derived Metrics**
@@ -133,8 +133,8 @@ SQLite was chosen for:
 
 ### Data Collection Frequency
 
-- Stock price: Every 10 seconds to catch intraday moves
-- Options data: Every 15 minutes due to slower changes in options metrics
+- Stock price: Every hour to catch intraday moves
+- Options data: Every 4 hours due to slower changes in options metrics
 - Historical data: Daily for technical indicators
 
 ### Strategy Analyzer Scoring

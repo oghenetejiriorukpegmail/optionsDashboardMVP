@@ -7,3 +7,4 @@ export * from "./use-toast";
 export * from "./tabs";
 export * from "./select";
 export * from "./badge";
+export * from "./tooltip";

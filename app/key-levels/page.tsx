@@ -7,6 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import ChartJSOptionsChain from "@/components/charts/chart-js-options-chain";
 import ChartJSTechnical from "@/components/charts/chart-js-technical";
+import EnhancedOptionsChain from "@/components/charts/enhanced/EnhancedOptionsChain";
+import GammaConcentration from "@/components/charts/GammaConcentration";
+import CharmVannaChart from "@/components/charts/CharmVannaChart";
+import BullishTechnicalChart from "@/components/charts/BullishTechnicalChart";
+import BullishOptionsVisualizer from "@/components/charts/BullishOptionsVisualizer";
 import { fetchOptionsChain, fetchTechnicalIndicators } from "@/lib/api";
 import { toast } from "@/components/ui/sonner";
 
@@ -17,6 +22,27 @@ const mockOptionsChain = {
   expirations: ['2025-04-18', '2025-04-25', '2025-05-02', '2025-05-16'],
   selectedExpiration: '2025-04-25',
   strikes: [
+    {
+      strike: 270,
+      call: {
+        oi: 7500,
+        volume: 920,
+        iv: 41.8,
+        gamma: 0.021,
+        charm: 0.014,
+        vanna: 0.28,
+        vomma: 0.11
+      },
+      put: {
+        oi: 13200,
+        volume: 2450,
+        iv: 44.2,
+        gamma: 0.018,
+        charm: -0.020,
+        vanna: -0.31,
+        vomma: 0.10
+      }
+    },
     {
       strike: 280,
       call: {
@@ -120,6 +146,27 @@ const mockOptionsChain = {
         charm: -0.016,
         vanna: -0.28,
         vomma: 0.12
+      }
+    },
+    {
+      strike: 330,
+      call: {
+        oi: 8300,
+        volume: 1200,
+        iv: 46.8,
+        gamma: 0.030,
+        charm: 0.015,
+        vanna: 0.34,
+        vomma: 0.12
+      },
+      put: {
+        oi: 5400,
+        volume: 780,
+        iv: 46.2,
+        gamma: 0.022,
+        charm: -0.014,
+        vanna: -0.25,
+        vomma: 0.11
       }
     }
   ],
@@ -230,8 +277,8 @@ export default function KeyLevels() {
                 </CardDescription>
               </div>
               <div>
-                <Button 
-                  variant={showVolume ? "default" : "outline"} 
+                <Button
+                  variant={showVolume ? "default" : "outline"}
                   size="sm"
                   onClick={() => setShowVolume(!showVolume)}
                 >
@@ -245,157 +292,269 @@ export default function KeyLevels() {
                   <p>Loading chart data...</p>
                 </div>
               ) : (
-                <ChartJSOptionsChain 
+                <EnhancedOptionsChain
                   data={optionsData.strikes}
                   currentPrice={optionsData.price}
                   maxPain={optionsData.maxPain}
-                  showVolume={showVolume}
+                  displayMode={showVolume ? 'volume' : 'openInterest'}
                   title={`${symbol} Options Chain - ${expiration}`}
+                  height={400}
+                  isLoading={loading}
+                  showAnimation={true}
                 />
               )}
-              
-              <div className="mt-4 overflow-x-auto">
+
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <div className="rounded-lg border p-4 bg-card">
+                  <h3 className="text-lg font-medium flex items-center">
+                    <span className="inline-flex items-center justify-center rounded-full bg-primary/10 p-1 mr-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary"></span>
+                    </span>
+                    Max Pain Analysis
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    The strike price where option holders (both puts and calls) would lose the most money at expiration.
+                  </p>
+
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Max Pain Level:</span>
+                      <span className="text-sm font-mono bg-primary/10 px-2 py-0.5 rounded">
+                        ${optionsData.maxPain}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Distance from Current:</span>
+                      <span className={`text-sm font-mono ${
+                        Math.abs(optionsData.price - optionsData.maxPain) < (optionsData.price * 0.02)
+                          ? "text-green-500"
+                          : Math.abs(optionsData.price - optionsData.maxPain) < (optionsData.price * 0.05)
+                          ? "text-yellow-500"
+                          : "text-red-500"
+                      }`}>
+                        {Math.abs(((optionsData.maxPain / optionsData.price) - 1) * 100).toFixed(1)}%
+                        {optionsData.maxPain > optionsData.price ? " above" : " below"}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Expiration Effect:</span>
+                      <span className="text-sm">
+                        {Math.abs(optionsData.price - optionsData.maxPain) < (optionsData.price * 0.02)
+                          ? "Likely to remain near current price"
+                          : optionsData.maxPain > optionsData.price
+                          ? "May drift higher into expiration"
+                          : "May drift lower into expiration"
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4 bg-card">
+                  <h3 className="text-lg font-medium flex items-center">
+                    <span className="inline-flex items-center justify-center rounded-full bg-primary/10 p-1 mr-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary"></span>
+                    </span>
+                    Gamma Exposure (GEX)
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Measures market maker hedging impact on price movement.
+                  </p>
+
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Net GEX:</span>
+                      <span className={`text-sm font-mono ${
+                        optionsData.gex > 1000000
+                          ? "text-green-500"
+                          : optionsData.gex < -1000000
+                          ? "text-red-500"
+                          : "text-blue-500"
+                      }`}>
+                        {optionsData.gex >= 0 ? "+" : ""}{(optionsData.gex / 1000000).toFixed(2)}M
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Market Impact:</span>
+                      <span className="text-sm">
+                        {optionsData.gex > 1000000
+                          ? "Stabilizing (resistance to downside)"
+                          : optionsData.gex < -1000000
+                          ? "Destabilizing (amplifies moves)"
+                          : "Neutral (limited impact)"
+                        }
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Volatility Effect:</span>
+                      <span className={`text-sm ${
+                        optionsData.gex > 1000000
+                          ? "text-green-500"
+                          : optionsData.gex < -1000000
+                          ? "text-red-500"
+                          : "text-blue-500"
+                      }`}>
+                        {optionsData.gex > 1000000
+                          ? "Dampened - MM hedging fights moves"
+                          : optionsData.gex < -1000000
+                          ? "Amplified - MM hedging accelerates moves"
+                          : "Normal volatility expected"
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 overflow-x-auto">
+                <div className="text-sm font-medium mb-2">Options Chain Data</div>
                 <table className="w-full caption-bottom text-sm">
-                  <thead className="[&_tr]:border-b">
+                  <thead className="[&_tr]:border-b bg-muted/50">
                     <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                      <th className="h-12 px-4 text-left align-middle font-medium">Strike</th>
-                      <th className="h-12 px-4 text-left align-middle font-medium">Call OI</th>
-                      <th className="h-12 px-4 text-left align-middle font-medium">Call Vol</th>
-                      <th className="h-12 px-4 text-left align-middle font-medium">Call IV</th>
-                      <th className="h-12 px-4 text-left align-middle font-medium">Put OI</th>
-                      <th className="h-12 px-4 text-left align-middle font-medium">Put Vol</th>
-                      <th className="h-12 px-4 text-left align-middle font-medium">Put IV</th>
+                      <th className="h-10 px-4 text-left align-middle font-medium">Strike</th>
+                      <th className="h-10 px-4 text-left align-middle font-medium">Call OI</th>
+                      <th className="h-10 px-4 text-left align-middle font-medium">Call Vol</th>
+                      <th className="h-10 px-4 text-left align-middle font-medium">Call IV</th>
+                      <th className="h-10 px-4 text-left align-middle font-medium">Gamma</th>
+                      <th className="h-10 px-4 text-left align-middle font-medium">Put OI</th>
+                      <th className="h-10 px-4 text-left align-middle font-medium">Put Vol</th>
+                      <th className="h-10 px-4 text-left align-middle font-medium">Put IV</th>
+                      <th className="h-10 px-4 text-left align-middle font-medium">Gamma</th>
                     </tr>
                   </thead>
                   <tbody className="[&_tr:last-child]:border-0">
                     {optionsData.strikes.map((strike) => (
-                      <tr 
-                        key={strike.strike} 
-                        className={`border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted ${strike.strike === optionsData.maxPain ? "bg-muted/50" : ""}`}
+                      <tr
+                        key={strike.strike}
+                        className={`border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted ${
+                          strike.strike === optionsData.maxPain
+                            ? "bg-purple-50 dark:bg-purple-900/20"
+                            : Math.abs(strike.strike - optionsData.price) < 1
+                            ? "bg-blue-50 dark:bg-blue-900/20"
+                            : ""
+                        }`}
                       >
-                        <td className="p-4 align-middle font-medium">{strike.strike}</td>
-                        <td className="p-4 align-middle">{strike.call.oi.toLocaleString()}</td>
-                        <td className="p-4 align-middle">{strike.call.volume.toLocaleString()}</td>
-                        <td className="p-4 align-middle">{strike.call.iv.toFixed(1)}%</td>
-                        <td className="p-4 align-middle">{strike.put.oi.toLocaleString()}</td>
-                        <td className="p-4 align-middle">{strike.put.volume.toLocaleString()}</td>
-                        <td className="p-4 align-middle">{strike.put.iv.toFixed(1)}%</td>
+                        <td className="p-2 align-middle font-medium">
+                          ${strike.strike}
+                          {strike.strike === optionsData.maxPain &&
+                            <span className="ml-1 text-xs text-purple-600 dark:text-purple-400">MP</span>
+                          }
+                          {Math.abs(strike.strike - optionsData.price) < 1 &&
+                            <span className="ml-1 text-xs text-blue-600 dark:text-blue-400">CP</span>
+                          }
+                        </td>
+                        <td className="p-2 align-middle">{strike.call.oi.toLocaleString()}</td>
+                        <td className="p-2 align-middle">{strike.call.volume.toLocaleString()}</td>
+                        <td className="p-2 align-middle">{strike.call.iv.toFixed(1)}%</td>
+                        <td className="p-2 align-middle text-green-600">{strike.call.gamma.toFixed(3)}</td>
+                        <td className="p-2 align-middle">{strike.put.oi.toLocaleString()}</td>
+                        <td className="p-2 align-middle">{strike.put.volume.toLocaleString()}</td>
+                        <td className="p-2 align-middle">{strike.put.iv.toFixed(1)}%</td>
+                        <td className="p-2 align-middle text-red-600">{strike.put.gamma.toFixed(3)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <h3 className="text-lg font-medium">Max Pain: ${optionsData.maxPain}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    The strike price where option holders (both puts and calls) would lose the most money at expiration
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-lg font-medium">GEX: {optionsData.gex >= 0 ? "+" : ""}{(optionsData.gex / 1000000).toFixed(0)}M</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {optionsData.gex > 0 
-                      ? "Positive gamma exposure indicates market maker hedging will dampen volatility" 
-                      : "Negative gamma exposure indicates market maker hedging may increase volatility"}
-                  </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Gamma Analysis</CardTitle>
+              <CardDescription>
+                Gamma concentration across strike prices
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <GammaConcentration
+                  data={optionsData.strikes}
+                  currentPrice={optionsData.price}
+                  maxPain={optionsData.maxPain}
+                  height={250}
+                />
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-medium">Gamma Interpretation</h3>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">High Gamma Strike:</span>
+                      <span className="text-sm">${optionsData.maxPain} (acts as magnet)</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Gamma Flip Point:</span>
+                      <span className="text-sm">${optionsData.price - 5} (negative below, positive above)</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-medium">Trading Implications</h3>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Price Magnet:</span>
+                      <span className="text-sm">Price likely to gravitate toward ${optionsData.maxPain}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Volatility Impact:</span>
+                      <span className="text-sm">
+                        {optionsData.gex > 0
+                          ? `Reduced volatility near $${optionsData.maxPain}`
+                          : `Increased volatility if price moves away from $${optionsData.maxPain}`}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
-          
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Gamma Analysis</CardTitle>
-                <CardDescription>
-                  Gamma concentration across strike prices
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Charm & Vanna Analysis</CardTitle>
+              <CardDescription>
+                Time decay of delta and volatility impact
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <CharmVannaChart
+                  data={optionsData.strikes}
+                  currentPrice={optionsData.price}
+                  height={250}
+                />
+
                 <div className="space-y-4">
-                  <div className="h-[250px] w-full bg-slate-100 rounded-md flex items-center justify-center">
-                    <p className="text-muted-foreground">Gamma Concentration Visualization</p>
-                    <p className="text-xs text-muted-foreground ml-2">(Coming soon in next update)</p>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-medium">Gamma Interpretation</h3>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">High Gamma Strike:</span>
-                        <span className="text-sm">${optionsData.maxPain} (acts as magnet)</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Gamma Flip Point:</span>
-                        <span className="text-sm">${optionsData.price - 5} (negative below, positive above)</span>
-                      </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-medium">Charm (Delta Decay)</h3>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Positive Charm:</span>
+                      <span className="text-sm">Delta increases as time passes</span>
                     </div>
-                    
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-medium">Trading Implications</h3>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Price Magnet:</span>
-                        <span className="text-sm">Price likely to gravitate toward ${optionsData.maxPain}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Volatility Impact:</span>
-                        <span className="text-sm">
-                          {optionsData.gex > 0 
-                            ? `Reduced volatility near $${optionsData.maxPain}` 
-                            : `Increased volatility if price moves away from $${optionsData.maxPain}`}
-                        </span>
-                      </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Negative Charm:</span>
+                      <span className="text-sm">Delta decreases as time passes</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-medium">Vanna (Volatility-Delta)</h3>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Positive Vanna:</span>
+                      <span className="text-sm">Delta increases as IV rises</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Negative Vanna:</span>
+                      <span className="text-sm">Delta decreases as IV rises</span>
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Charm & Vanna Analysis</CardTitle>
-                <CardDescription>
-                  Time decay of delta and volatility impact
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="h-[250px] w-full bg-slate-100 rounded-md flex items-center justify-center">
-                    <p className="text-muted-foreground">Charm & Vanna Visualization</p>
-                    <p className="text-xs text-muted-foreground ml-2">(Coming soon in next update)</p>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-medium">Charm (Delta Decay)</h3>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Positive Charm:</span>
-                        <span className="text-sm">Delta increases as time passes</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Negative Charm:</span>
-                        <span className="text-sm">Delta decreases as time passes</span>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-medium">Vanna (Volatility-Delta)</h3>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Positive Vanna:</span>
-                        <span className="text-sm">Delta increases as IV rises</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Negative Vanna:</span>
-                        <span className="text-sm">Delta decreases as IV rises</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
         
         <TabsContent value="support-resistance" className="space-y-4">
@@ -484,14 +643,24 @@ export default function KeyLevels() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="rounded-md border p-4">
-                  <h3 className="text-lg font-medium mb-2">Bullish Level Example: {symbol}</h3>
-                  <p className="mb-2"><span className="font-medium">Current Price:</span> ${optionsData.price.toFixed(2)}</p>
-                  <p className="mb-2"><span className="font-medium">Technical Support:</span> ${technicalData.keyLevels.support[1]} (recent consolidation)</p>
-                  <p className="mb-2"><span className="font-medium">Options Support:</span> ${technicalData.keyLevels.maxPain} (max pain, high call OI)</p>
-                  <p className="mb-2"><span className="font-medium">Technical Resistance:</span> ${technicalData.keyLevels.resistance[0]} (recent high)</p>
-                  <p><span className="font-medium">Strategy:</span> Buy calls with ${technicalData.keyLevels.maxPain} strike, set stop below ${technicalData.keyLevels.support[1]} support</p>
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Bullish Technical Analysis</h3>
+                  <BullishTechnicalChart
+                    data={technicalData.historicalData}
+                    keyLevels={technicalData.keyLevels}
+                    height={350}
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Bullish Options Strategy</h3>
+                  <BullishOptionsVisualizer
+                    strikes={optionsData.strikes}
+                    currentPrice={optionsData.price}
+                    keyLevels={technicalData.keyLevels}
+                    height={300}
+                  />
                 </div>
               </div>
             </CardContent>

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as talib from 'ta-lib';
-import { SCANNER_CONFIG } from '@/lib/config';
+import { SCANNER_CONFIG, TECHNICAL_INDICATOR_CONFIG } from '@/lib/config';
+import { cachedFetch, cacheManager } from './cacheManager';
 
 // Types for Yahoo Finance API responses
 interface YahooQuote {
@@ -80,52 +81,32 @@ const formatDate = (timestamp: number): string => {
   return date.toISOString().split('T')[0];
 };
 
-// Get current stock quote
-export async function getQuote(ticker: string): Promise<{
-  ticker: string;
-  date: string;
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-} | null> {
-  let attempts = 0;
+// Cache TTLs for different data types
+const CACHE_TTLS = {
+  QUOTE: 10 * 1000, // 10 seconds
+  HISTORICAL: 60 * 60 * 1000, // 1 hour
+  OPTIONS: 5 * 60 * 1000, // 5 minutes
+  TECHNICAL: 60 * 60 * 1000, // 1 hour
+};
 
+/**
+ * Fetch data from Yahoo Finance API with retries and exponential backoff
+ */
+async function fetchYahooFinanceApi<T>(url: string, params?: any): Promise<T> {
+  let attempts = 0;
+  
   while (attempts < API_RETRY_ATTEMPTS) {
     try {
-      console.log(`Fetching quote for ${ticker} (attempt ${attempts + 1}/${API_RETRY_ATTEMPTS})...`);
-
-      const response = await axios.get(YAHOO_FINANCE_API.QUOTE, {
-        params: {
-          symbols: ticker,
-          formatted: false,
-        },
+      const response = await axios.get(url, {
+        params,
         headers: DEFAULT_HEADERS,
       });
-
-      const quoteData = response.data.quoteResponse.result[0] as YahooQuote;
-
-      if (!quoteData) {
-        console.error(`No quote data found for ${ticker}`);
-        return null;
-      }
-
-      return {
-        ticker,
-        date: formatDate(quoteData.regularMarketTime),
-        timestamp: quoteData.regularMarketTime,
-        open: quoteData.regularMarketOpen,
-        high: quoteData.regularMarketDayHigh,
-        low: quoteData.regularMarketDayLow,
-        close: quoteData.regularMarketPrice,
-        volume: quoteData.regularMarketVolume,
-      };
+      
+      return response.data;
     } catch (error: any) {
       attempts++;
-      console.error(`Error fetching quote for ${ticker} (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
-
+      console.error(`Error fetching from Yahoo Finance API (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
+      
       // If we got a 429 (Too Many Requests) status code, wait longer
       if (error.response && error.response.status === 429) {
         const backoffTime = Math.min(API_RETRY_DELAY * Math.pow(2, attempts), 10000);
@@ -137,14 +118,75 @@ export async function getQuote(ticker: string): Promise<{
           await delay(API_RETRY_DELAY);
         }
       }
+      
+      if (attempts >= API_RETRY_ATTEMPTS) {
+        throw new Error(`Failed after ${API_RETRY_ATTEMPTS} attempts: ${error.message || error}`);
+      }
     }
   }
-
-  console.error(`Failed to fetch quote for ${ticker} after ${API_RETRY_ATTEMPTS} attempts`);
-  return null;
+  
+  throw new Error(`Failed after ${API_RETRY_ATTEMPTS} attempts`);
 }
 
-// Get historical data
+/**
+ * Get current stock quote with caching
+ */
+export async function getQuote(ticker: string): Promise<{
+  ticker: string;
+  date: string;
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+} | null> {
+  const cacheKey = `quote:${ticker}`;
+  
+  return cachedFetch(
+    cacheKey,
+    async () => {
+      console.log(`Fetching quote for ${ticker} from API...`);
+      
+      const data = await fetchYahooFinanceApi<any>(YAHOO_FINANCE_API.QUOTE, {
+        symbols: ticker,
+        formatted: false,
+      });
+      
+      const quoteData = data.quoteResponse.result[0] as YahooQuote;
+      
+      if (!quoteData) {
+        console.error(`No quote data found for ${ticker}`);
+        return null;
+      }
+      
+      return {
+        ticker,
+        date: formatDate(quoteData.regularMarketTime),
+        timestamp: quoteData.regularMarketTime,
+        open: quoteData.regularMarketOpen,
+        high: quoteData.regularMarketDayHigh,
+        low: quoteData.regularMarketDayLow,
+        close: quoteData.regularMarketPrice,
+        volume: quoteData.regularMarketVolume,
+      };
+    },
+    {
+      ttl: CACHE_TTLS.QUOTE,
+      staleWhileRevalidate: true,
+      checkFreshness: (data) => {
+        // Check if data was fetched in the last 60 seconds during market hours
+        const now = new Date();
+        const marketOpen = now.getHours() >= 9 && now.getHours() < 16;
+        return marketOpen ? (Date.now() - data.timestamp * 1000) < 60000 : true;
+      }
+    }
+  );
+}
+
+/**
+ * Get historical data with caching
+ */
 export async function getHistoricalData(
   ticker: string,
   period = '3mo',
@@ -159,33 +201,31 @@ export async function getHistoricalData(
   volume: number[];
   adjclose: number[];
 } | null> {
-  let attempts = 0;
-
-  while (attempts < API_RETRY_ATTEMPTS) {
-    try {
-      console.log(`Fetching historical data for ${ticker} (attempt ${attempts + 1}/${API_RETRY_ATTEMPTS})...`);
-
-      const response = await axios.get(`${YAHOO_FINANCE_API.HISTORY}/${ticker}`, {
-        params: {
-          period,
-          interval,
-          includePrePost: false,
-          events: 'div,split',
-        },
-        headers: DEFAULT_HEADERS,
+  const cacheKey = `historical:${ticker}:${period}:${interval}`;
+  
+  return cachedFetch(
+    cacheKey,
+    async () => {
+      console.log(`Fetching historical data for ${ticker} from API...`);
+      
+      const data = await fetchYahooFinanceApi<any>(`${YAHOO_FINANCE_API.HISTORY}/${ticker}`, {
+        period,
+        interval,
+        includePrePost: false,
+        events: 'div,split',
       });
-
-      const result = response.data.chart.result[0];
+      
+      const result = data.chart.result[0];
       if (!result) {
         console.error(`No historical data found for ${ticker}`);
         return null;
       }
-
+      
       const timestamps = result.timestamp;
       const dates = timestamps.map(formatDate);
       const { open, high, low, close, volume } = result.indicators.quote[0];
       const { adjclose } = result.indicators.adjclose[0];
-
+      
       return {
         dates,
         timestamps,
@@ -196,29 +236,17 @@ export async function getHistoricalData(
         volume,
         adjclose,
       };
-    } catch (error: any) {
-      attempts++;
-      console.error(`Error fetching historical data for ${ticker} (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
-
-      // If we got a 429 (Too Many Requests) status code, wait longer
-      if (error.response && error.response.status === 429) {
-        const backoffTime = Math.min(API_RETRY_DELAY * Math.pow(2, attempts), 10000);
-        console.log(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
-        await delay(backoffTime);
-      } else {
-        // For other errors, use standard delay between retries
-        if (attempts < API_RETRY_ATTEMPTS) {
-          await delay(API_RETRY_DELAY);
-        }
-      }
+    },
+    {
+      ttl: CACHE_TTLS.HISTORICAL,
+      staleWhileRevalidate: true,
     }
-  }
-
-  console.error(`Failed to fetch historical data for ${ticker} after ${API_RETRY_ATTEMPTS} attempts`);
-  return null;
+  );
 }
 
-// Get options chain
+/**
+ * Get options chain with caching
+ */
 export async function getOptionsChain(ticker: string, expirationTimestamp?: number): Promise<{
   ticker: string;
   expirationDates: string[];
@@ -227,31 +255,32 @@ export async function getOptionsChain(ticker: string, expirationTimestamp?: numb
   calls: YahooOption[];
   puts: YahooOption[];
 } | null> {
-  let attempts = 0;
-
-  while (attempts < API_RETRY_ATTEMPTS) {
-    try {
-      console.log(`Fetching options chain for ${ticker} (attempt ${attempts + 1}/${API_RETRY_ATTEMPTS})...`);
-
+  const cacheKey = `options:${ticker}${expirationTimestamp ? `:${expirationTimestamp}` : ''}`;
+  
+  return cachedFetch(
+    cacheKey,
+    async () => {
+      console.log(`Fetching options chain for ${ticker} from API...`);
+      
       let url = `${YAHOO_FINANCE_API.OPTIONS}/${ticker}`;
+      let params = {};
+      
       if (expirationTimestamp) {
-        url += `?date=${expirationTimestamp}`;
+        params = { date: expirationTimestamp };
       }
-
-      const response = await axios.get(url, {
-        headers: DEFAULT_HEADERS,
-      });
-
-      const optionChain = response.data.optionChain.result[0] as YahooOptionChain;
-
+      
+      const data = await fetchYahooFinanceApi<any>(url, params);
+      
+      const optionChain = data.optionChain.result[0] as YahooOptionChain;
+      
       if (!optionChain) {
         console.error(`No options chain found for ${ticker}`);
         return null;
       }
-
+      
       // Format expiration dates
       const expirationDates = optionChain.expirationDates.map(formatDate);
-
+      
       return {
         ticker,
         expirationDates,
@@ -260,29 +289,17 @@ export async function getOptionsChain(ticker: string, expirationTimestamp?: numb
         calls: optionChain.calls,
         puts: optionChain.puts,
       };
-    } catch (error: any) {
-      attempts++;
-      console.error(`Error fetching options chain for ${ticker} (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
-
-      // If we got a 429 (Too Many Requests) status code, wait longer
-      if (error.response && error.response.status === 429) {
-        const backoffTime = Math.min(API_RETRY_DELAY * Math.pow(2, attempts), 10000);
-        console.log(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
-        await delay(backoffTime);
-      } else {
-        // For other errors, use standard delay between retries
-        if (attempts < API_RETRY_ATTEMPTS) {
-          await delay(API_RETRY_DELAY);
-        }
-      }
+    },
+    {
+      ttl: CACHE_TTLS.OPTIONS,
+      staleWhileRevalidate: true,
     }
-  }
-
-  console.error(`Failed to fetch options chain for ${ticker} after ${API_RETRY_ATTEMPTS} attempts`);
-  return null;
+  );
 }
 
-// Calculate technical indicators
+/**
+ * Calculate technical indicators with caching
+ */
 export function calculateTechnicalIndicators(historicalData: {
   close: number[];
   high: number[];
@@ -294,18 +311,30 @@ export function calculateTechnicalIndicators(historicalData: {
   rsi14: number[];
   stochRsi: number[];
 } {
+  // Generate a cache key based on the input data
+  const dataHash = JSON.stringify({
+    close: historicalData.close.slice(-50), // Only use last 50 points for hash
+    timestamp: Math.floor(Date.now() / CACHE_TTLS.TECHNICAL)
+  });
+  const cacheKey = `technicals:${dataHash}`;
+  
+  // Check cache first
+  const cachedResult = cacheManager.get(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+  
   try {
     // EMA calculations
-    const ema10 = talib.EMA(historicalData.close, 10);
-    const ema20 = talib.EMA(historicalData.close, 20);
-    const ema50 = talib.EMA(historicalData.close, 50);
+    const ema10 = talib.EMA(historicalData.close, TECHNICAL_INDICATOR_CONFIG.EMA_PERIODS.SHORT);
+    const ema20 = talib.EMA(historicalData.close, TECHNICAL_INDICATOR_CONFIG.EMA_PERIODS.MEDIUM);
+    const ema50 = talib.EMA(historicalData.close, TECHNICAL_INDICATOR_CONFIG.EMA_PERIODS.LONG);
     
     // RSI calculation
-    const rsi14 = talib.RSI(historicalData.close, 14);
+    const rsi14 = talib.RSI(historicalData.close, TECHNICAL_INDICATOR_CONFIG.RSI_PERIOD);
     
     // Stochastic RSI calculation (simplified)
-    // Note: This is a simplified version - for accurate Stochastic RSI, you may need a library that supports it directly
-    const rsiPeriod = 14;
+    const rsiPeriod = TECHNICAL_INDICATOR_CONFIG.STOCH_RSI_PERIOD;
     const stochPeriod = 14;
     const kPeriod = 3;
     const dPeriod = 3;
@@ -328,13 +357,18 @@ export function calculateTechnicalIndicators(historicalData: {
     // Fill beginning with NaN to match length
     const padding = Array(historicalData.close.length - stochRsi.length).fill(NaN);
     
-    return {
+    const result = {
       ema10,
       ema20,
       ema50,
       rsi14,
       stochRsi: [...padding, ...stochRsi],
     };
+    
+    // Cache the result
+    cacheManager.set(cacheKey, result, { ttl: CACHE_TTLS.TECHNICAL });
+    
+    return result;
   } catch (error) {
     console.error('Error calculating technical indicators:', error);
     return {
@@ -347,8 +381,14 @@ export function calculateTechnicalIndicators(historicalData: {
   }
 }
 
-// Calculate options-based metrics
-export function calculateOptionsMetrics(calls: YahooOption[], puts: YahooOption[], currentPrice: number): {
+/**
+ * Calculate options-based metrics with caching
+ */
+export function calculateOptionsMetrics(
+  calls: YahooOption[], 
+  puts: YahooOption[], 
+  currentPrice: number
+): {
   pcr: number;
   maxPain: number;
   totalCallOi: number;
@@ -358,6 +398,21 @@ export function calculateOptionsMetrics(calls: YahooOption[], puts: YahooOption[
   vwiv: number;
   gammaExposure: number;
 } {
+  // Generate a cache key based on the input data
+  const dataHash = JSON.stringify({
+    callsOi: calls.reduce((sum, call) => sum + call.openInterest, 0),
+    putsOi: puts.reduce((sum, put) => sum + put.openInterest, 0),
+    price: currentPrice,
+    timestamp: Math.floor(Date.now() / (5 * 60 * 1000)) // 5 minute granularity
+  });
+  const cacheKey = `options_metrics:${dataHash}`;
+  
+  // Check cache first
+  const cachedResult = cacheManager.get(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+  
   // Put-Call Ratio calculation
   const totalCallOi = calls.reduce((sum, option) => sum + option.openInterest, 0);
   const totalPutOi = puts.reduce((sum, option) => sum + option.openInterest, 0);
@@ -425,7 +480,7 @@ export function calculateOptionsMetrics(calls: YahooOption[], puts: YahooOption[
   
   const gammaExposure = callGamma + putGamma;
   
-  return {
+  const result = {
     pcr,
     maxPain: maxPainStrike,
     totalCallOi,
@@ -435,11 +490,32 @@ export function calculateOptionsMetrics(calls: YahooOption[], puts: YahooOption[
     vwiv,
     gammaExposure,
   };
+  
+  // Cache the result
+  cacheManager.set(cacheKey, result, { ttl: CACHE_TTLS.OPTIONS });
+  
+  return result;
 }
 
-// Get IV percentile based on historical IV data
+/**
+ * Calculate IV percentile based on historical IV data
+ */
 export function calculateIvPercentile(currentIv: number, historicalIvs: number[]): number {
   const sortedIvs = [...historicalIvs].sort((a, b) => a - b);
   const position = sortedIvs.findIndex(iv => iv >= currentIv);
   return position / sortedIvs.length * 100;
+}
+
+/**
+ * Get cache stats for monitoring
+ */
+export function getCacheStats() {
+  return cacheManager.getStats();
+}
+
+/**
+ * Clear all cache
+ */
+export function clearCache() {
+  cacheManager.clear();
 }

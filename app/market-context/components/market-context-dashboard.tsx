@@ -6,7 +6,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, RefreshCw, TrendingUp, TrendingDown, LineChart } from 'lucide-react';
+import {
+  Loader2,
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  LineChart,
+  BarChart2,
+  Activity
+} from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -173,36 +181,210 @@ export function MarketContextDashboard() {
     fetchHistoricalData();
   };
   
-  // Helper function to determine trend based on EMAs
+  // Helper function to determine trend based on EMAs with more nuanced analysis
   const getTrendInfo = () => {
     if (!marketContext?.technicals) return { type: 'unknown', label: 'Unknown', icon: null };
-    
+
     const { ema_10, ema_20, ema_50 } = marketContext.technicals;
-    
-    if (ema_10 > ema_20 && ema_20 > ema_50) {
-      return { 
-        type: 'bullish', 
-        label: 'Bullish', 
+    const { rsi_14 } = marketContext.technicals || { rsi_14: 50 };
+    const { pcr } = marketContext.sentiment || { pcr: 1.0 };
+
+    // Strong bullish trend: 10 > 20 > 50 EMA, plus RSI > 50, PCR < 0.9
+    if (ema_10 > ema_20 && ema_20 > ema_50 && rsi_14 > 50 && pcr < 0.9) {
+      return {
+        type: 'strong_bullish',
+        label: 'Strong Bullish',
         icon: <TrendingUp className="h-5 w-5 text-green-500" />,
-        color: 'text-green-500'
+        color: 'text-green-500',
+        description: 'Strong uptrend with bullish momentum and bullish options sentiment'
       };
-    } else if (ema_10 < ema_20 && ema_20 < ema_50) {
-      return { 
-        type: 'bearish', 
-        label: 'Bearish', 
+    }
+    // Bullish trend: 10 > 20 > 50 EMA
+    else if (ema_10 > ema_20 && ema_20 > ema_50) {
+      return {
+        type: 'bullish',
+        label: 'Bullish',
+        icon: <TrendingUp className="h-5 w-5 text-green-500" />,
+        color: 'text-green-500',
+        description: 'Uptrend with bullish momentum'
+      };
+    }
+    // Strong bearish trend: 10 < 20 < 50 EMA, plus RSI < 50, PCR > 1.1
+    else if (ema_10 < ema_20 && ema_20 < ema_50 && rsi_14 < 50 && pcr > 1.1) {
+      return {
+        type: 'strong_bearish',
+        label: 'Strong Bearish',
         icon: <TrendingDown className="h-5 w-5 text-red-500" />,
-        color: 'text-red-500'
+        color: 'text-red-500',
+        description: 'Strong downtrend with bearish momentum and bearish options sentiment'
       };
-    } else {
-      return { 
-        type: 'neutral', 
-        label: 'Neutral', 
+    }
+    // Bearish trend: 10 < 20 < 50 EMA
+    else if (ema_10 < ema_20 && ema_20 < ema_50) {
+      return {
+        type: 'bearish',
+        label: 'Bearish',
+        icon: <TrendingDown className="h-5 w-5 text-red-500" />,
+        color: 'text-red-500',
+        description: 'Downtrend with bearish momentum'
+      };
+    }
+    // Transition to bullish: 10 > 20 < 50 EMA
+    else if (ema_10 > ema_20 && ema_20 < ema_50) {
+      return {
+        type: 'transition_bullish',
+        label: 'Trend Reversal (Bullish)',
+        icon: <TrendingUp className="h-5 w-5 text-green-500" />,
+        color: 'text-green-500',
+        description: 'Potential bullish trend reversal forming'
+      };
+    }
+    // Transition to bearish: 10 < 20 > 50 EMA
+    else if (ema_10 < ema_20 && ema_20 > ema_50) {
+      return {
+        type: 'transition_bearish',
+        label: 'Trend Reversal (Bearish)',
+        icon: <TrendingDown className="h-5 w-5 text-red-500" />,
+        color: 'text-red-500',
+        description: 'Potential bearish trend reversal forming'
+      };
+    }
+    // Neutral/Consolidation
+    else {
+      return {
+        type: 'neutral',
+        label: 'Neutral/Consolidation',
         icon: <LineChart className="h-5 w-5 text-yellow-500" />,
-        color: 'text-yellow-500'
+        color: 'text-yellow-500',
+        description: 'Price in consolidation phase with no clear trend direction'
       };
     }
   };
   
+  // Helper function to analyze momentum
+  const getMomentumInfo = () => {
+    if (!marketContext?.technicals) return { strength: 'unknown', status: 'Unknown', description: '' };
+
+    const { rsi_14, stoch_rsi } = marketContext.technicals;
+
+    // Overbought
+    if (rsi_14 > 70) {
+      return {
+        strength: 'overbought',
+        status: 'Overbought',
+        description: 'RSI above 70 indicates potential reversal or pullback',
+        color: 'text-red-500'
+      };
+    }
+    // Oversold
+    else if (rsi_14 < 30) {
+      return {
+        strength: 'oversold',
+        status: 'Oversold',
+        description: 'RSI below 30 indicates potential reversal or bounce',
+        color: 'text-green-500'
+      };
+    }
+    // Strong bullish momentum
+    else if (rsi_14 > 60 && stoch_rsi > 60) {
+      return {
+        strength: 'strong',
+        status: 'Strong Bullish Momentum',
+        description: 'RSI and StochRSI indicate strong bullish momentum',
+        color: 'text-green-500'
+      };
+    }
+    // Strong bearish momentum
+    else if (rsi_14 < 40 && stoch_rsi < 40) {
+      return {
+        strength: 'strong',
+        status: 'Strong Bearish Momentum',
+        description: 'RSI and StochRSI indicate strong bearish momentum',
+        color: 'text-red-500'
+      };
+    }
+    // Bullish momentum
+    else if (rsi_14 > 50 && stoch_rsi > 50) {
+      return {
+        strength: 'moderate',
+        status: 'Bullish Momentum',
+        description: 'RSI and StochRSI above 50 indicate bullish momentum',
+        color: 'text-green-500'
+      };
+    }
+    // Bearish momentum
+    else if (rsi_14 < 50 && stoch_rsi < 50) {
+      return {
+        strength: 'moderate',
+        status: 'Bearish Momentum',
+        description: 'RSI and StochRSI below 50 indicate bearish momentum',
+        color: 'text-red-500'
+      };
+    }
+    // Neutral momentum
+    else {
+      return {
+        strength: 'weak',
+        status: 'Neutral Momentum',
+        description: 'RSI and StochRSI indicate no clear momentum direction',
+        color: 'text-yellow-500'
+      };
+    }
+  };
+
+  // Helper function to interpret PCR and sentiment
+  const getSentimentInfo = () => {
+    if (!marketContext?.sentiment) return { type: 'unknown', label: 'Unknown', description: '' };
+
+    const { pcr, iv_percentile, gamma_exposure } = marketContext.sentiment;
+
+    // Extremely bullish
+    if (pcr < 0.7 && gamma_exposure > 0) {
+      return {
+        type: 'extremely_bullish',
+        label: 'Extremely Bullish',
+        description: 'Very low PCR indicates strong call buying activity',
+        color: 'text-green-600'
+      };
+    }
+    // Bullish
+    else if (pcr < 0.9) {
+      return {
+        type: 'bullish',
+        label: 'Bullish',
+        description: 'Low PCR indicates bullish sentiment among options traders',
+        color: 'text-green-500'
+      };
+    }
+    // Extremely bearish
+    else if (pcr > 1.3 && gamma_exposure < 0) {
+      return {
+        type: 'extremely_bearish',
+        label: 'Extremely Bearish',
+        description: 'Very high PCR indicates strong put buying activity',
+        color: 'text-red-600'
+      };
+    }
+    // Bearish
+    else if (pcr > 1.1) {
+      return {
+        type: 'bearish',
+        label: 'Bearish',
+        description: 'High PCR indicates bearish sentiment among options traders',
+        color: 'text-red-500'
+      };
+    }
+    // Neutral
+    else {
+      return {
+        type: 'neutral',
+        label: 'Neutral',
+        description: 'Balanced PCR indicates neutral options sentiment',
+        color: 'text-yellow-500'
+      };
+    }
+  };
+
   // Format dates for charts
   const formatChartDates = (data: any[] | undefined) => {
     if (!data) return [];
@@ -357,6 +539,7 @@ export function MarketContextDashboard() {
                   <span className="ml-1">{trendInfo.label}</span>
                 </div>
               </div>
+              <p className={`text-sm mt-1 ${trendInfo.color}`}>{trendInfo.description}</p>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -372,6 +555,16 @@ export function MarketContextDashboard() {
                   <span className="text-muted-foreground">EMA (50):</span>
                   <span>${marketContext.technicals?.ema_50.toFixed(2)}</span>
                 </div>
+
+                {/* Momentum section */}
+                <div className="mt-4 pt-3 border-t">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium">Momentum</span>
+                    <span className={getMomentumInfo().color}>{getMomentumInfo().status}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{getMomentumInfo().description}</p>
+                </div>
+
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">RSI (14):</span>
                   <span>{marketContext.technicals?.rsi_14.toFixed(2)}</span>
@@ -387,7 +580,13 @@ export function MarketContextDashboard() {
           {/* Market Sentiment Card */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Market Sentiment</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg">Market Sentiment</CardTitle>
+                <span className={`${getSentimentInfo().color} font-medium`}>
+                  {getSentimentInfo().label}
+                </span>
+              </div>
+              <p className={`text-sm mt-1 ${getSentimentInfo().color}`}>{getSentimentInfo().description}</p>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -405,9 +604,25 @@ export function MarketContextDashboard() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Gamma Exposure:</span>
-                  <span>
+                  <span className={marketContext.sentiment?.gamma_exposure > 0 ? "text-green-500" : "text-red-500"}>
                     ${(marketContext.sentiment?.gamma_exposure / 1000000).toFixed(2)}M
                   </span>
+                </div>
+
+                <div className="mt-4 pt-3 border-t">
+                  <div className="flex items-center mb-2">
+                    <span className="font-medium">Options Interpretation</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {marketContext.sentiment?.pcr < 0.9 ? "Bullish call activity dominates" :
+                     marketContext.sentiment?.pcr > 1.1 ? "Bearish put activity dominates" :
+                     "Balanced options activity"}
+                    {marketContext.sentiment?.iv_percentile > 70 ? ", with high implied volatility suggesting larger price swings" :
+                     marketContext.sentiment?.iv_percentile < 30 ? ", with low implied volatility suggesting muted price action" :
+                     ", with moderate implied volatility"}.
+                    {marketContext.sentiment?.gamma_exposure > 0 ? " Positive gamma exposure may accelerate upside moves." :
+                     marketContext.sentiment?.gamma_exposure < 0 ? " Negative gamma exposure may accelerate downside moves." : ""}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -430,6 +645,77 @@ export function MarketContextDashboard() {
       
       {marketContext && (
         <div className="space-y-6">
+          {/* Market Analysis Summary Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Market Analysis Summary</CardTitle>
+              <CardDescription>
+                Combined analysis of technical indicators and options data
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Trend Analysis */}
+                  <div className="border rounded-lg p-4">
+                    <div className="flex items-center mb-2">
+                      {trendInfo.icon}
+                      <h3 className={`text-lg font-medium ml-2 ${trendInfo.color}`}>Trend Analysis</h3>
+                    </div>
+                    <p className="text-sm">{trendInfo.description}</p>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Based on EMA alignment, price action, and momentum
+                    </div>
+                  </div>
+
+                  {/* Momentum Status */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className={`text-lg font-medium ${getMomentumInfo().color}`}>
+                      {getMomentumInfo().status}
+                    </h3>
+                    <p className="text-sm mt-2">{getMomentumInfo().description}</p>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Based on RSI and Stochastic RSI readings
+                    </div>
+                  </div>
+
+                  {/* Options Sentiment */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className={`text-lg font-medium ${getSentimentInfo().color}`}>
+                      {getSentimentInfo().label} Sentiment
+                    </h3>
+                    <p className="text-sm mt-2">{getSentimentInfo().description}</p>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Based on Put-Call Ratio, IV Percentile, and Gamma Exposure
+                    </div>
+                  </div>
+                </div>
+
+                {/* Trading Implication */}
+                <div className="border rounded-lg p-4 mt-4">
+                  <h3 className="text-lg font-medium mb-2">Trading Implications</h3>
+                  <p className="text-sm">
+                    {trendInfo.type.includes('bullish') && getSentimentInfo().type.includes('bullish') ?
+                      "Strong bullish alignment between technical indicators and options sentiment. Consider bullish strategies with defined risk." :
+                     trendInfo.type.includes('bearish') && getSentimentInfo().type.includes('bearish') ?
+                      "Strong bearish alignment between technical indicators and options sentiment. Consider bearish strategies with defined risk." :
+                     trendInfo.type.includes('bullish') && getSentimentInfo().type.includes('bearish') ?
+                      "Mixed signals: Bullish technicals but bearish options sentiment. Proceed with caution and reduce position size." :
+                     trendInfo.type.includes('bearish') && getSentimentInfo().type.includes('bullish') ?
+                      "Mixed signals: Bearish technicals but bullish options sentiment. Proceed with caution and reduce position size." :
+                      "Neutral market conditions. Consider range-bound strategies or reduced position sizing until clearer signals emerge."
+                    }
+                    {getMomentumInfo().strength === 'overbought' ?
+                      " Be cautious of potential pullbacks due to overbought conditions." :
+                     getMomentumInfo().strength === 'oversold' ?
+                      " Watch for potential bounces from oversold conditions." : ""
+                    }
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Price & Moving Averages</CardTitle>

@@ -9,7 +9,7 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { calculatePositionSize } from "@/lib/api";
 import { toast } from "../ui/sonner";
-import { InfoCircle, AlertTriangle, DollarSign, BarChart } from "lucide-react";
+import { Info, AlertTriangle, DollarSign, BarChart } from "lucide-react";
 
 interface RiskCalculatorProps {
   symbol: string;
@@ -186,7 +186,7 @@ export function RiskCalculator({ symbol, stockData }: RiskCalculatorProps) {
                   
                   <div className="rounded-lg bg-muted p-3 text-sm">
                     <div className="flex items-start gap-2">
-                      <InfoCircle className="h-4 w-4 mt-0.5 text-blue-500" />
+                      <Info className="h-4 w-4 mt-0.5 text-blue-500" />
                       <div>
                         <p>Max risk amount: <span className="font-medium">${(accountSize * riskPercentage / 100).toFixed(2)}</span></p>
                         <p className="text-xs text-muted-foreground mt-1">

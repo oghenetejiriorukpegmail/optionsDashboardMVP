@@ -31,13 +31,13 @@ export const SCANNER_CONFIG = {
     /**
      * Delay between retries in milliseconds
      */
-    RETRY_DELAY: 1000,
+    RETRY_DELAY: 2000,
     
     /**
      * Maximum number of concurrent API requests
      * to avoid rate limiting
      */
-    CONCURRENCY_LIMIT: 3,
+    CONCURRENCY_LIMIT: 1,
   }
 };
 

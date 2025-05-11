@@ -1,14 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
-import { CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, LineChart, Target } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  LineChart,
+  Target,
+  Clock,
+  ArrowRight,
+  Share2,
+  Activity,
+  Minus
+} from "lucide-react";
 import { toast } from "../ui/sonner";
 import { addToWatchlist } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { RuleCheckItem } from "../RuleCheckItem";
 
 interface ConfirmationTimingProps {
   symbol: string;
@@ -51,36 +66,43 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
   const [selectedTimeframe, setSelectedTimeframe] = useState<'short' | 'medium' | 'long'>('short');
   
   // Get confirmation status
-  const confirmationStatus = analyzeConfirmation(stockData);
-  
+  const confirmationStatus = analyzeConfirmation(stockData || {});
+
   // Determine entry and exit triggers
-  const entryTriggers = determineEntryTriggers(stockData);
-  const exitTriggers = determineExitTriggers(stockData);
+  const entryTriggers = determineEntryTriggers(stockData || {});
+  const exitTriggers = determineExitTriggers(stockData || {});
   
   // Check if all confirmation criteria are met
   const isConfirmed = confirmationStatus.filter(item => !item.status).length === 0;
-  
+
   // Check if entry trigger is active
   const activeEntryTrigger = entryTriggers.find(trigger => trigger.active);
-  
+
+  // Ensure keyLevels exist with default values if needed
+  const keyLevels = stockData?.keyLevels || {
+    support: [stockData?.price * 0.95 || 100],
+    resistance: [stockData?.price * 1.05 || 110],
+    maxPain: stockData?.price || 105
+  };
+
   // Determine timeframe-specific exit targets
   const exitTargets = {
     short: {
-      target: typeof stockData.recommendation.target === 'number' 
-        ? stockData.recommendation.target 
-        : stockData.keyLevels.resistance[0],
+      target: typeof stockData?.recommendation?.target === 'number'
+        ? stockData?.recommendation?.target
+        : keyLevels.resistance[0],
       timeframe: '3-5 days'
     },
     medium: {
-      target: typeof stockData.recommendation.target === 'number'
-        ? stockData.recommendation.target * 1.05
-        : stockData.keyLevels.resistance[1],
+      target: typeof stockData?.recommendation?.target === 'number'
+        ? stockData?.recommendation?.target * 1.05
+        : keyLevels.resistance[1] || keyLevels.resistance[0] * 1.05,
       timeframe: '1-2 weeks'
     },
     long: {
-      target: typeof stockData.recommendation.target === 'number'
-        ? stockData.recommendation.target * 1.1
-        : stockData.keyLevels.resistance[1] * 1.05,
+      target: typeof stockData?.recommendation?.target === 'number'
+        ? stockData?.recommendation?.target * 1.1
+        : (keyLevels.resistance[1] || keyLevels.resistance[0]) * 1.05,
       timeframe: '3-4 weeks'
     }
   };
@@ -90,12 +112,12 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
     try {
       const watchlistItem = {
         symbol,
-        price: stockData.price,
-        setupType: stockData.setupType,
-        entryTarget: activeEntryTrigger ? activeEntryTrigger.price : stockData.price,
-        stopLoss: typeof stockData.recommendation.stop === 'number'
+        price: stockData?.price || 0,
+        setupType: stockData?.setupType || 'bullish',
+        entryTarget: activeEntryTrigger ? activeEntryTrigger.price : (stockData?.price || 0),
+        stopLoss: typeof stockData?.recommendation?.stop === 'number'
           ? stockData.recommendation.stop
-          : stockData.keyLevels.support[0],
+          : keyLevels.support[0],
         timeframe: selectedTimeframe,
         exitTarget: exitTargets[selectedTimeframe].target
       };
@@ -128,8 +150,8 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
               variant={isConfirmed ? "default" : "outline"}
               className={`${
                 isConfirmed ? 
-                  (stockData.setupType === 'bullish' ? 'bg-green-600' : 
-                  stockData.setupType === 'bearish' ? 'bg-red-600' : 
+                  (stockData?.setupType === 'bullish' ? 'bg-green-600' :
+                  stockData?.setupType === 'bearish' ? 'bg-red-600' :
                   'bg-blue-600') : 
                   'text-muted-foreground'
               }`}
@@ -151,7 +173,7 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
             <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-4">
               <h3 className="text-lg font-semibold mb-2">Confirmation Status</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                These criteria confirm the validity of the {stockData.setupType} trade setup.
+                These criteria confirm the validity of the {stockData?.setupType || 'bullish'} trade setup.
               </p>
               
               <div className="space-y-4">
@@ -230,12 +252,12 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
                     <div className="mt-4 flex justify-center">
                       <Button 
                         onClick={handleAddToWatchlist}
-                        className={stockData.setupType === 'bullish' ? 'bg-green-600 hover:bg-green-700' : 
-                                 stockData.setupType === 'bearish' ? 'bg-red-600 hover:bg-red-700' : 
+                        className={stockData?.setupType === 'bullish' ? 'bg-green-600 hover:bg-green-700' :
+                                 stockData?.setupType === 'bearish' ? 'bg-red-600 hover:bg-red-700' :
                                  'bg-blue-600 hover:bg-blue-700'}
                       >
-                        {stockData.setupType === 'bullish' ? 'Enter Bullish Trade Now' : 
-                         stockData.setupType === 'bearish' ? 'Enter Bearish Trade Now' : 
+                        {stockData?.setupType === 'bullish' ? 'Enter Bullish Trade Now' :
+                         stockData?.setupType === 'bearish' ? 'Enter Bearish Trade Now' :
                          'Enter Neutral Trade Now'}
                       </Button>
                     </div>
@@ -345,15 +367,15 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
                   <div className="text-muted-foreground">Profit Potential:</div>
                   <div>
                     {(
-                      ((exitTargets[selectedTimeframe].target - stockData.price) / stockData.price) * 100
+                      ((exitTargets[selectedTimeframe].target - (stockData?.price || 100)) / (stockData?.price || 100)) * 100
                     ).toFixed(1)}%
                   </div>
                   
                   <div className="text-muted-foreground">Recommended Stop:</div>
                   <div>
-                    ${typeof stockData.recommendation.stop === 'number' ? 
-                      stockData.recommendation.stop.toFixed(2) : 
-                      stockData.keyLevels.support[0].toFixed(2)
+                    ${typeof stockData?.recommendation?.stop === 'number' ?
+                      stockData?.recommendation?.stop.toFixed(2) :
+                      (stockData?.keyLevels?.support?.[0] || (stockData?.price || 100) * 0.95).toFixed(2)
                     }
                   </div>
                 </div>
@@ -365,7 +387,7 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
             <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-4">
               <h3 className="text-lg font-semibold mb-2">Exit Signals</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                These signals help determine when to exit a {stockData.setupType} trade.
+                These signals help determine when to exit a {stockData?.setupType || 'bullish'} trade.
               </p>
               
               <div className="space-y-4">
@@ -416,7 +438,7 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
                       <span className="text-sm">${exitTargets.short.target.toFixed(2)}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {((exitTargets.short.target - stockData.price) / stockData.price * 100).toFixed(1)}% gain
+                      {((exitTargets.short.target - (stockData?.price || 100)) / (stockData?.price || 100) * 100).toFixed(1)}% gain
                     </div>
                   </div>
                   
@@ -426,7 +448,7 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
                       <span className="text-sm">${exitTargets.medium.target.toFixed(2)}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {((exitTargets.medium.target - stockData.price) / stockData.price * 100).toFixed(1)}% gain
+                      {((exitTargets.medium.target - (stockData?.price || 100)) / (stockData?.price || 100) * 100).toFixed(1)}% gain
                     </div>
                   </div>
                   
@@ -436,7 +458,7 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
                       <span className="text-sm">${exitTargets.long.target.toFixed(2)}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {((exitTargets.long.target - stockData.price) / stockData.price * 100).toFixed(1)}% gain
+                      {((exitTargets.long.target - (stockData?.price || 100)) / (stockData?.price || 100) * 100).toFixed(1)}% gain
                     </div>
                   </div>
                 </div>
@@ -459,7 +481,7 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="bg-red-100 text-red-600 hover:bg-red-100">Tight</Badge>
                       <span className="text-sm">
-                        ${(stockData.price * 0.98).toFixed(2)}
+                        ${((stockData?.price || 100) * 0.98).toFixed(2)}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -471,16 +493,16 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="bg-orange-100 text-orange-600 hover:bg-orange-100">Moderate</Badge>
                       <span className="text-sm">
-                        ${typeof stockData.recommendation.stop === 'number' ? 
-                            stockData.recommendation.stop.toFixed(2) : 
-                            stockData.keyLevels.support[0].toFixed(2)}
+                        ${typeof stockData?.recommendation?.stop === 'number' ?
+                            stockData?.recommendation?.stop.toFixed(2) :
+                            (stockData?.keyLevels?.support?.[0] || (stockData?.price || 100) * 0.95).toFixed(2)}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {(Math.abs((
-                        (typeof stockData.recommendation.stop === 'number' ? 
-                          stockData.recommendation.stop : 
-                          stockData.keyLevels.support[0]) - stockData.price) / stockData.price) * 100
+                        (typeof stockData?.recommendation?.stop === 'number' ?
+                          stockData?.recommendation?.stop :
+                          (stockData?.keyLevels?.support?.[0] || (stockData?.price || 100) * 0.95)) - (stockData?.price || 100)) / (stockData?.price || 100)) * 100
                       ).toFixed(1)}% loss (medium risk tolerance)
                     </div>
                   </div>
@@ -489,16 +511,16 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="bg-amber-100 text-amber-600 hover:bg-amber-100">Wide</Badge>
                       <span className="text-sm">
-                        ${(typeof stockData.recommendation.stop === 'number' ? 
-                            stockData.recommendation.stop * 0.95 : 
-                            stockData.keyLevels.support[0] * 0.95).toFixed(2)}
+                        ${(typeof stockData?.recommendation?.stop === 'number' ?
+                            stockData?.recommendation?.stop * 0.95 :
+                            (stockData?.keyLevels?.support?.[0] || (stockData?.price || 100) * 0.95) * 0.95).toFixed(2)}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {(Math.abs((
-                        (typeof stockData.recommendation.stop === 'number' ? 
-                          stockData.recommendation.stop * 0.95 : 
-                          stockData.keyLevels.support[0] * 0.95) - stockData.price) / stockData.price) * 100
+                        (typeof stockData?.recommendation?.stop === 'number' ?
+                          stockData?.recommendation?.stop * 0.95 :
+                          (stockData?.keyLevels?.support?.[0] || (stockData?.price || 100) * 0.95) * 0.95) - (stockData?.price || 100)) / (stockData?.price || 100)) * 100
                       ).toFixed(1)}% loss (low risk tolerance)
                     </div>
                   </div>
@@ -546,8 +568,13 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
 // Helper function to analyze confirmation criteria
 function analyzeConfirmation(stockData: any) {
   // Default to bullish analysis unless setup type suggests otherwise
-  const setupType = stockData.setupType;
-  
+  const setupType = stockData?.setupType || 'bullish';
+
+  // If stockData is undefined or null, return empty confirmation items
+  if (!stockData) {
+    return [];
+  }
+
   let confirmationItems = [];
   
   if (setupType === 'bullish') {
@@ -556,20 +583,20 @@ function analyzeConfirmation(stockData: any) {
       {
         title: 'Stochastic RSI Hooks Up',
         description: 'Stochastic RSI turns upward from below 60',
-        status: stockData.stochasticRsi < 60 && stochRsiTrend(stockData.historicalData) === 'up',
-        value: `Stochastic RSI: ${stockData.stochasticRsi.toFixed(1)}, Trend: ${stochRsiTrend(stockData.historicalData)}`
+        status: (stockData?.stochasticRsi || 0) < 60 && stochRsiTrend(stockData?.historicalData || []) === 'up',
+        value: `Stochastic RSI: ${(stockData?.stochasticRsi || 0).toFixed(1)}, Trend: ${stochRsiTrend(stockData?.historicalData || [])}`
       },
       {
         title: 'Volume Confirmation',
         description: 'Volume increases as price moves toward entry',
-        status: stockData.volume.percentChange > 15,
-        value: `Volume % Change: ${stockData.volume.percentChange.toFixed(1)}%`
+        status: (stockData?.volume?.percentChange || 0) > 15,
+        value: `Volume % Change: ${(stockData?.volume?.percentChange || 0).toFixed(1)}%`
       },
       {
         title: 'Rising Vanna/Vomma/GEX',
         description: 'Options metrics show increasing bullish sentiment',
-        status: stockData.gex > 0 && stockData.gex > previousGEX(stockData),
-        value: `GEX: ${formatGEX(stockData.gex)}, Previous: ${formatGEX(previousGEX(stockData))}`
+        status: (stockData?.gex || 0) > 0 && (stockData?.gex || 0) > previousGEX(stockData),
+        value: `GEX: ${formatGEX(stockData?.gex || 0)}, Previous: ${formatGEX(previousGEX(stockData))}`
       }
     ];
   } else if (setupType === 'bearish') {
@@ -584,8 +611,8 @@ function analyzeConfirmation(stockData: any) {
       {
         title: 'Volume Confirmation',
         description: 'Volume increases as price moves toward entry',
-        status: stockData.volume.percentChange > 15,
-        value: `Volume % Change: ${stockData.volume.percentChange.toFixed(1)}%`
+        status: (stockData?.volume?.percentChange || 0) > 15,
+        value: `Volume % Change: ${(stockData?.volume?.percentChange || 0).toFixed(1)}%`
       },
       {
         title: 'Falling Vanna/Vomma/GEX',
@@ -623,7 +650,21 @@ function analyzeConfirmation(stockData: any) {
 
 // Helper function to determine entry triggers
 function determineEntryTriggers(stockData: any) {
-  const setupType = stockData.setupType;
+  // Safety check for undefined stockData
+  if (!stockData) {
+    return [];
+  }
+
+  // Create default values if key properties are missing
+  const price = stockData?.price || 100;
+  const keyLevels = stockData?.keyLevels || {
+    support: [price * 0.95],
+    resistance: [price * 1.05],
+    maxPain: price
+  };
+  const historicalData = stockData?.historicalData || [{close: price}, {close: price * 0.99}];
+
+  const setupType = stockData?.setupType || 'bullish';
   
   if (setupType === 'bullish') {
     // Bullish entry triggers
@@ -631,23 +672,23 @@ function determineEntryTriggers(stockData: any) {
       {
         title: 'Price Pulls Back to Support',
         description: 'Enter when price tests support level and bounces',
-        active: isPriceNearLevel(stockData.price, stockData.keyLevels.support, 'support') && 
-                stockData.price > stockData.historicalData[stockData.historicalData.length - 2].close,
-        price: findNearestLevel(stockData.price, stockData.keyLevels.support, 'support')
+        active: isPriceNearLevel(price, keyLevels.support, 'support') &&
+                price > (historicalData[historicalData.length - 2]?.close || price * 0.99),
+        price: findNearestLevel(price, keyLevels.support, 'support')
       },
       {
         title: 'Stochastic RSI Crossover',
         description: 'Enter when Stochastic RSI crosses above 30 with upward momentum',
-        active: stockData.stochasticRsi > 30 && 
-                stockData.stochasticRsi < 60 && 
-                stochRsiTrend(stockData.historicalData) === 'up',
-        price: stockData.price
+        active: (stockData?.stochasticRsi || 0) > 30 &&
+                (stockData?.stochasticRsi || 0) < 60 &&
+                stochRsiTrend(historicalData) === 'up',
+        price: price
       },
       {
         title: 'Volume Spike with Price Strength',
         description: 'Enter on a volume spike with price closing near day high',
-        active: stockData.volume.percentChange > 30,
-        price: stockData.price
+        active: (stockData?.volume?.percentChange || 0) > 30,
+        price: price
       }
     ];
   } else if (setupType === 'bearish') {
@@ -656,23 +697,23 @@ function determineEntryTriggers(stockData: any) {
       {
         title: 'Price Rallies to Resistance',
         description: 'Enter when price tests resistance level and fails',
-        active: isPriceNearLevel(stockData.price, stockData.keyLevels.resistance, 'resistance') && 
-                stockData.price < stockData.historicalData[stockData.historicalData.length - 2].close,
-        price: findNearestLevel(stockData.price, stockData.keyLevels.resistance, 'above')
+        active: isPriceNearLevel(price, keyLevels.resistance, 'resistance') &&
+                price < (historicalData[historicalData.length - 2]?.close || price * 1.01),
+        price: findNearestLevel(price, keyLevels.resistance, 'above')
       },
       {
         title: 'Stochastic RSI Crossover',
         description: 'Enter when Stochastic RSI crosses below 70 with downward momentum',
-        active: stockData.stochasticRsi < 70 && 
-                stockData.stochasticRsi > 40 && 
-                stochRsiTrend(stockData.historicalData) === 'down',
-        price: stockData.price
+        active: (stockData?.stochasticRsi || 100) < 70 &&
+                (stockData?.stochasticRsi || 100) > 40 &&
+                stochRsiTrend(historicalData) === 'down',
+        price: price
       },
       {
         title: 'Volume Spike with Price Weakness',
         description: 'Enter on a volume spike with price closing near day low',
-        active: stockData.volume.percentChange > 30,
-        price: stockData.price
+        active: (stockData?.volume?.percentChange || 0) > 30,
+        price: price
       }
     ];
   } else {
@@ -681,22 +722,22 @@ function determineEntryTriggers(stockData: any) {
       {
         title: 'Price Approaches Max Pain',
         description: 'Enter when price consolidates near Max Pain level',
-        active: Math.abs(stockData.price - stockData.keyLevels.maxPain) < (stockData.price * 0.01),
-        price: stockData.keyLevels.maxPain
+        active: Math.abs(price - keyLevels.maxPain) < (price * 0.01),
+        price: keyLevels.maxPain
       },
       {
         title: 'Stochastic RSI in Mid-Range',
         description: 'Enter when Stochastic RSI is between 40-60 with low volatility',
-        active: stockData.stochasticRsi >= 40 && 
-                stockData.stochasticRsi <= 60 && 
-                stochRsiTrend(stockData.historicalData) === 'flat',
-        price: stockData.price
+        active: (stockData?.stochasticRsi || 50) >= 40 &&
+                (stockData?.stochasticRsi || 50) <= 60 &&
+                stochRsiTrend(historicalData) === 'flat',
+        price: price
       },
       {
         title: 'Low GEX & Vanna',
         description: 'Enter when GEX is near zero with balanced options activity',
-        active: Math.abs(stockData.gex) < 100000,
-        price: stockData.price
+        active: Math.abs(stockData?.gex || 0) < 100000,
+        price: price
       }
     ];
   }
@@ -704,17 +745,37 @@ function determineEntryTriggers(stockData: any) {
 
 // Helper function to determine exit triggers
 function determineExitTriggers(stockData: any) {
-  const setupType = stockData.setupType;
-  
+  // Safety check for undefined stockData
+  if (!stockData) {
+    return [];
+  }
+
+  // Create default values if key properties are missing
+  const price = stockData?.price || 100;
+  const keyLevels = stockData?.keyLevels || {
+    support: [price * 0.95],
+    resistance: [price * 1.05],
+    maxPain: price
+  };
+  const recommendation = stockData?.recommendation || {
+    target: price * 1.05,
+    stop: price * 0.95,
+    action: 'hold',
+    expiration: '30d',
+    strike: price
+  };
+
+  const setupType = stockData?.setupType || 'bullish';
+
   // Common exit triggers across all setup types
   const commonExits = [
     {
       title: 'Stop Loss Trigger',
       description: 'Exit when price breaks below key support level',
       type: 'stop',
-      value: typeof stockData.recommendation.stop === 'number' ? 
-        `$${stockData.recommendation.stop.toFixed(2)}` : 
-        stockData.recommendation.stop
+      value: typeof recommendation.stop === 'number' ?
+        `$${recommendation.stop.toFixed(2)}` :
+        recommendation.stop || `$${(price * 0.95).toFixed(2)}`
     }
   ];
   
@@ -725,9 +786,9 @@ function determineExitTriggers(stockData: any) {
         title: 'Target Price Reached',
         description: 'Exit when price reaches target resistance level',
         type: 'target',
-        value: typeof stockData.recommendation.target === 'number' ? 
-          `$${stockData.recommendation.target.toFixed(2)}` : 
-          stockData.recommendation.target
+        value: typeof recommendation.target === 'number' ?
+          `$${recommendation.target.toFixed(2)}` :
+          recommendation.target || `$${(price * 1.05).toFixed(2)}`
       },
       {
         title: 'RSI Extreme',
@@ -750,9 +811,9 @@ function determineExitTriggers(stockData: any) {
         title: 'Target Price Reached',
         description: 'Exit when price reaches target support level',
         type: 'target',
-        value: typeof stockData.recommendation.target === 'number' ? 
-          `$${stockData.recommendation.target.toFixed(2)}` : 
-          stockData.recommendation.target
+        value: typeof recommendation.target === 'number' ?
+          `$${recommendation.target.toFixed(2)}` :
+          recommendation.target || `$${(price * 1.05).toFixed(2)}`
       },
       {
         title: 'RSI Extreme',
@@ -795,11 +856,16 @@ function determineExitTriggers(stockData: any) {
 }
 
 // Helper function to determine if price is near a specific level
-function isPriceNearLevel(price: number, levels: number[], type: 'support' | 'resistance'): boolean {
+function isPriceNearLevel(price: number, levels: number[] | undefined, type: 'support' | 'resistance'): boolean {
+  // Handle undefined levels
+  if (!levels || !Array.isArray(levels) || levels.length === 0) {
+    return false;
+  }
+
   // For support, check if price is within 3% of any support level
   if (type === 'support') {
     return levels.some(level => price >= level && price <= level * 1.03);
-  } 
+  }
   // For resistance, check if price is within 3% below any resistance level
   else {
     return levels.some(level => price <= level && price >= level * 0.97);
@@ -807,7 +873,12 @@ function isPriceNearLevel(price: number, levels: number[], type: 'support' | 're
 }
 
 // Helper function to find nearest level (support or resistance)
-function findNearestLevel(price: number, levels: number[], direction: 'above' | 'below' | 'support' | 'resistance'): number {
+function findNearestLevel(price: number, levels: number[] | undefined, direction: 'above' | 'below' | 'support' | 'resistance'): number {
+  // Handle undefined levels
+  if (!levels || !Array.isArray(levels) || levels.length === 0) {
+    return price * (direction === 'below' || direction === 'support' ? 0.95 : 1.05);
+  }
+
   if (direction === 'below' || direction === 'support') {
     // Find the highest level below current price
     const belowLevels = levels.filter(level => level < price);
@@ -821,13 +892,19 @@ function findNearestLevel(price: number, levels: number[], direction: 'above' | 
 
 // Helper function to determine Stochastic RSI trend
 function stochRsiTrend(historicalData: any[]): 'up' | 'down' | 'flat' {
+  // Safety check for undefined historicalData
+  if (!historicalData || !Array.isArray(historicalData) || historicalData.length < 3) {
+    return 'flat';
+  }
+
   const last5 = historicalData.slice(-5);
-  
+
   if (last5.length < 3) return 'flat';
-  
-  const current = last5[last5.length - 1].stochasticRsi;
-  const previous = last5[last5.length - 2].stochasticRsi;
-  const twoBefore = last5[last5.length - 3].stochasticRsi;
+
+  // Add null checks for stochasticRsi properties
+  const current = last5[last5.length - 1]?.stochasticRsi || 50;
+  const previous = last5[last5.length - 2]?.stochasticRsi || 50;
+  const twoBefore = last5[last5.length - 3]?.stochasticRsi || 50;
   
   if (current > previous && previous >= twoBefore) return 'up';
   if (current < previous && previous <= twoBefore) return 'down';
@@ -838,11 +915,18 @@ function stochRsiTrend(historicalData: any[]): 'up' | 'down' | 'flat' {
 function previousGEX(stockData: any): number {
   // In a real implementation, this would retrieve historical GEX data
   // For simulation, we'll generate a value based on current GEX
+  if (!stockData || typeof stockData.gex !== 'number') {
+    return 0;
+  }
   return stockData.gex * (0.8 + Math.random() * 0.4);
 }
 
 // Helper function to format GEX values
 function formatGEX(gex: number): string {
+  if (!gex && gex !== 0) {
+    return "0.00";
+  }
+
   if (Math.abs(gex) >= 1000000) {
     return `${(gex / 1000000).toFixed(2)}M`;
   } else if (Math.abs(gex) >= 1000) {
