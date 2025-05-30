@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
+import { ibkrClient, initializeIBKR } from '@/lib/services/ibkrClient';
 
 // Cache for options chain data
 const optionsCache: Record<string, { data: any; timestamp: number }> = {};
@@ -97,7 +98,24 @@ async function fetchOptionExpirations(symbol: string): Promise<string[]> {
 
 // Mock function to fetch options chain for a specific expiration (simulated for demo)
 async function fetchOptionsChain(symbol: string, expiration: string): Promise<any[]> {
-  // In a real implementation, this would call a proper options data API
+  // Try IBKR first if available
+  if (process.env.IBKR_GATEWAY_URL) {
+    try {
+      const initialized = await initializeIBKR();
+      if (initialized) {
+        const optionsChain = await ibkrClient.getOptionsChain(symbol);
+        if (optionsChain && optionsChain.strikes.length > 0) {
+          console.log(`Got options chain for ${symbol} from IBKR`);
+          return optionsChain.strikes;
+        }
+      }
+    } catch (error) {
+      console.error(`IBKR options chain failed for ${symbol}:`, error);
+    }
+  }
+  
+  // Fall back to synthetic data generation
+  console.log(`Generating synthetic options chain for ${symbol}`);
   
   // Generate a series of strikes around the current price
   try {

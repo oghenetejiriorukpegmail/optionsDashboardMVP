@@ -200,7 +200,7 @@ const RSIChart: React.FC<RSIChartProps> = ({
         className="w-full h-auto rounded-md"
       />
       <div className="text-xs text-muted-foreground mt-2 text-center">
-        RSI Chart showing overbought (>70) and oversold (<30) zones
+        RSI Chart showing overbought (&gt;70) and oversold (&lt;30) zones
       </div>
     </div>
   );

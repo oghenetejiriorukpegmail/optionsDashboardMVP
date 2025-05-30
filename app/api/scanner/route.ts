@@ -4,7 +4,8 @@ import {
   getLatestMarketContext, 
   getOptionsData, 
   getDailySummaries,
-  saveTradeSetup
+  saveTradeSetup,
+  getTradeSetups
 } from '@/lib/db/repository';
 import { analyzeTradeSetups, batchAnalyzeSetups } from '@/lib/services/strategyAnalyzer';
 
@@ -165,18 +166,6 @@ function getSetupStrength(strength: number) {
   return 'weak';
 }
 
-// Helper function to fetch trade setups from database
-async function getTradeSetups(ticker: string) {
-  // Import directly to avoid circular dependency
-  const { getTradeSetups } = require('@/lib/db/repository');
-  
-  try {
-    return await getTradeSetups(ticker);
-  } catch (error) {
-    console.error(`Error getting trade setups for ${ticker}:`, error);
-    return [];
-  }
-}
 
 // Calculate market summary based on setup counts and average metrics
 async function calculateMarketSummary(results: any[]) {

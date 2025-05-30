@@ -1,55 +1,102 @@
 import { NextResponse } from 'next/server';
-import { fetchMultipleStockAnalyses } from '@/lib/data/yahooFinanceAPI';
-
-// Cache for stocks data to avoid excessive API calls
-let cachedStocks: any[] = [];
-let cacheTimestamp: Date | null = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+import { 
+  getLatestStockData,
+  getLatestTechnicalIndicators,
+  getLatestMarketSentiment 
+} from '@/lib/db/repository';
 
 export async function GET() {
   try {
-    // Check if we need to refresh the cache
-    const now = new Date();
-    const needRefresh = cachedStocks.length === 0 || 
-                        !cacheTimestamp || 
-                        (now.getTime() - cacheTimestamp.getTime() > CACHE_DURATION);
+    // List of stocks to fetch from database
+    const symbols = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA', 'NVDA', 'META', 'NFLX', 'AMD', 'INTC'];
     
-    if (needRefresh) {
-      console.log('Fetching fresh stocks data from Yahoo Finance...');
-      
-      // List of most popular stocks (subset of NASDAQ 100)
-      // Starting with just a few to avoid rate limiting
-      const symbols = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA'];
-      
-      // Fetch data for all symbols
-      const stocksData = await fetchMultipleStockAnalyses(symbols);
-      
-      // Transform into simplified format for the stocks API
-      cachedStocks = stocksData.map(stock => ({
-        symbol: stock.symbol,
-        price: stock.price,
-        setupType: stock.setupType,
-        emaTrend: stock.emaTrend,
-        pcr: stock.pcr,
-        rsi: stock.rsi,
-        strength: stock.setupStrength.charAt(0).toUpperCase() + stock.setupStrength.slice(1),
-        volume: stock.volume.current,
-        iv: 30, // Default since we don't have real IV data
-        gex: 0, // Default since we don't have real GEX data
-        vwiv: 29, // Default estimate
-      }));
-      
-      cacheTimestamp = now;
+    // Fetch data from database for all symbols
+    const stocksData = await Promise.all(
+      symbols.map(async (symbol) => {
+        try {
+          // Get latest stock data
+          const stockData = await getLatestStockData(symbol);
+          if (!stockData) {
+            console.log(`No stock data found for ${symbol} in database`);
+            return null;
+          }
+          
+          // Get latest technical indicators
+          const technicalData = await getLatestTechnicalIndicators(symbol);
+          
+          // Get latest market sentiment
+          const sentimentData = await getLatestMarketSentiment(symbol);
+          
+          // Determine setup type based on technical indicators
+          let setupType = 'Neutral';
+          let emaTrend = 'Neutral';
+          let strength = 'Medium';
+          
+          if (technicalData) {
+            // Simple logic to determine trend
+            if (stockData.close > technicalData.ema_20 && technicalData.ema_20 > technicalData.ema_50) {
+              emaTrend = 'Bullish';
+              setupType = 'Bullish Momentum';
+              strength = 'Strong';
+            } else if (stockData.close < technicalData.ema_20 && technicalData.ema_20 < technicalData.ema_50) {
+              emaTrend = 'Bearish';
+              setupType = 'Bearish Momentum';
+              strength = 'Weak';
+            }
+            
+            // Adjust based on RSI
+            if (technicalData.rsi_14 > 70) {
+              setupType = 'Overbought';
+            } else if (technicalData.rsi_14 < 30) {
+              setupType = 'Oversold';
+            }
+          }
+          
+          return {
+            symbol,
+            price: stockData.close,
+            setupType,
+            emaTrend,
+            pcr: sentimentData?.pcr || 1.0,
+            rsi: technicalData?.rsi_14 || 50,
+            strength,
+            volume: stockData.volume,
+            iv: sentimentData?.iv_percentile || 50,
+            gex: sentimentData?.gamma_exposure || 0,
+            vwiv: 0, // Not stored in DB yet
+            lastUpdated: stockData.timestamp,
+            date: stockData.date
+          };
+        } catch (error) {
+          console.error(`Error fetching data for ${symbol}:`, error);
+          return null;
+        }
+      })
+    );
+    
+    // Filter out null values
+    const validStocks = stocksData.filter(stock => stock !== null);
+    
+    if (validStocks.length === 0) {
+      return NextResponse.json({ 
+        error: true, 
+        message: 'No stock data available in database. Please trigger data collection first.',
+        hint: 'POST /api/collect-data with { "ticker": "AAPL" }'
+      }, { status: 404 });
     }
     
-    return NextResponse.json(cachedStocks);
+    return NextResponse.json({
+      stocks: validStocks,
+      count: validStocks.length,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error in stocks API:', error);
     
-    // Return an error response
     return NextResponse.json({ 
       error: true, 
-      message: 'Failed to fetch real-time stock data' 
-    }, { status: 503 }); // Service Unavailable
+      message: 'Failed to fetch stock data from database',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
   }
 }

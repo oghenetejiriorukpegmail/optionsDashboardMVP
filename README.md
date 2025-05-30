@@ -2,6 +2,24 @@
 
 A trading tool that combines options data and technical analysis to identify trading opportunities in volatile stocks. This application implements the "Options-Technical Hybrid Strategy" framework, which analyzes market context, maps key price levels using options chain metrics, and generates bullish, bearish, or neutral trade setups.
 
+## Data Sources
+
+### Interactive Brokers Integration (Recommended)
+The app now supports **real market data from Interactive Brokers** through their Client Portal API. If you have an IBKR account, you can get:
+- Real-time stock quotes
+- Complete options chains with Greeks
+- Historical price data
+- Live market data updates
+
+See [IBKR Setup Guide](./IBKR_SETUP.md) for detailed instructions.
+
+### Free Market Data APIs (Fallback)
+When IBKR is not available, the app falls back to free APIs:
+- **Polygon.io** - Stock quotes and historical data
+- **Alpha Vantage** - Market indexes and backup quotes
+- **Twelve Data** - Additional market data
+- **Synthetic Options Data** - Mathematically generated options chains
+
 ## Features
 
 - **Market Context Analysis**: Evaluate trends, sentiment, and momentum
@@ -43,12 +61,20 @@ npm install
 node scripts/init-db.js
 ```
 
-4. Start the development server:
+4. (Optional) Set up Interactive Brokers integration:
+   - Download and run the [IBKR Client Portal Gateway](./IBKR_SETUP.md)
+   - Log in through the gateway
+   - Test the connection:
+   ```bash
+   npm run test:ibkr
+   ```
+
+5. Start the development server:
 ```bash
 npm run dev
 ```
 
-5. Open your browser and navigate to `http://localhost:3000`
+5. Open your browser and navigate to `http://localhost:5000`
 
 ## Data Collection
 

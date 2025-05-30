@@ -1,6 +1,6 @@
 "use client";
 
-import { MarketContextDashboard } from './components/market-context-dashboard';
+import MarketContextDashboard from './components/market-context-dashboard';
 import { BarChart3 } from 'lucide-react';
 
 export default function MarketContextPage() {

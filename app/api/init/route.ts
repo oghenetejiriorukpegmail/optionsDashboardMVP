@@ -1,66 +1,39 @@
 import { NextResponse } from 'next/server';
-import { 
-  initializeDataCollection, 
-  initializeDefaultCollection,
-  getCollectionStatus,
-  manuallyCollectData
-} from '@/lib/services/enhancedDataCollector';
+import { initDb } from '@/lib/db';
 
-// Initialize data collection on app startup
-let initialized = false;
+// Database initialization status
+let dbInitialized = false;
 
 /**
- * GET /api/init - Initialize data collection for default tickers or a specific ticker
- * Query parameters:
- * - ticker (optional): Specific ticker to initialize
- * - force (optional): Force refresh data for ticker
+ * GET /api/init - Initialize database only (no automatic data collection)
+ * Data collection must be triggered manually via /api/collect-data
  */
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const ticker = searchParams.get('ticker');
-    const force = searchParams.get('force') === 'true';
-    
-    if (ticker) {
-      // Initialize for a specific ticker
-      initializeDataCollection(ticker);
-      
-      // Force immediate collection if requested
-      if (force) {
-        await manuallyCollectData(ticker);
-      }
+    if (!dbInitialized) {
+      // Initialize database
+      await initDb();
+      dbInitialized = true;
+      console.log('Database initialized successfully');
       
       return NextResponse.json({ 
-        message: `Data collection initialized for ${ticker}`, 
-        ticker,
-        force,
-        timestamp: new Date().toISOString() 
-      });
-    } else {
-      // Only initialize default collection once
-      if (!initialized) {
-        initializeDefaultCollection();
-        initialized = true;
-        
-        return NextResponse.json({ 
-          message: 'Data collection initialized for default tickers', 
-          timestamp: new Date().toISOString(),
-          status: getCollectionStatus()
-        });
-      }
-      
-      return NextResponse.json({ 
-        message: 'Data collection already initialized', 
+        message: 'Database initialized successfully', 
         timestamp: new Date().toISOString(),
-        status: getCollectionStatus()
+        hint: 'Use POST /api/collect-data to manually trigger data collection for specific tickers'
       });
     }
+    
+    return NextResponse.json({ 
+      message: 'Database already initialized', 
+      timestamp: new Date().toISOString(),
+      hint: 'Use POST /api/collect-data to manually trigger data collection for specific tickers'
+    });
   } catch (error) {
-    console.error('Error initializing data collection:', error);
+    console.error('Error initializing database:', error);
     
     return NextResponse.json(
       { 
-        error: 'Failed to initialize data collection', 
+        error: 'Failed to initialize database', 
         message: error instanceof Error ? error.message : String(error),
         timestamp: new Date().toISOString()
       },

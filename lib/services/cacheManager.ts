@@ -247,6 +247,14 @@ class CacheManager {
   }
 
   /**
+   * Clear all cache entries
+   */
+  clear(): void {
+    this.cache.clear();
+    this.fetchPromises.clear();
+  }
+
+  /**
    * Get cache stats
    */
   getStats(): { size: number; entries: string[] } {
@@ -267,6 +275,11 @@ export async function cachedFetch<T>(
   options?: CacheOptions
 ): Promise<T> {
   return cacheManager.fetchWithCache(key, fetchFn, options);
+}
+
+// Export clearCache function
+export function clearCache(): void {
+  cacheManager.clear();
 }
 
 // Set up periodic cache cleanup

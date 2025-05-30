@@ -1,11 +1,14 @@
 import { 
   getQuote, 
-  getHistoricalData, 
+  getHistoricalData
+} from './marketDataService';
+
+import { 
   getOptionsChain, 
   calculateTechnicalIndicators,
   calculateOptionsMetrics,
   calculateIvPercentile
-} from './yahooFinance';
+} from './yahooFinanceSimple';
 
 import { 
   saveStockData, 

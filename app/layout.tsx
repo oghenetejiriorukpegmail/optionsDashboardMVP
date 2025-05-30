@@ -1,9 +1,21 @@
-"use client";
-
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "next-themes";
-import { AppHeader } from "./components/app-header";
-import { Toaster } from "@/components/ui/toaster";
+import { LayoutClient } from "./layout-client";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "Options-Technical Hybrid Dashboard",
+  description: "A comprehensive trading platform combining options analytics and technical analysis",
+  keywords: "options trading, technical analysis, stock scanner, market data, trading dashboard",
+  authors: [{ name: "Options Dashboard Team" }],
+  openGraph: {
+    title: "Options-Technical Hybrid Dashboard",
+    description: "Advanced trading platform for options and technical analysis",
+    type: "website",
+  },
+};
 
 export default function RootLayout({
   children,
@@ -12,27 +24,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <title>Options-Technical Hybrid Dashboard</title>
-        <meta name="description" content="A comprehensive trading platform combining options analytics and technical analysis" />
-      </head>
-      <body className="min-h-screen bg-background font-sans antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <div className="relative flex min-h-screen flex-col">
-            <AppHeader />
-            <div className="flex-1">
-              <main className="container py-6">
-                {children}
-              </main>
-            </div>
-          </div>
-          <Toaster />
-        </ThemeProvider>
+      <body className={`${inter.className} min-h-screen bg-background font-sans antialiased`}>
+        <LayoutClient>{children}</LayoutClient>
       </body>
     </html>
   );

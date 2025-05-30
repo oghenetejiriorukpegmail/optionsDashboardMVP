@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, RefreshCw, ArrowUpRight, ArrowDownRight, MinusCircle, BookmarkPlus, AlertTriangle, BarChart3, TrendingUp, TrendingDown, CheckCircle2, Link } from 'lucide-react';
+import { Loader2, RefreshCw, ArrowUpRight, ArrowDownRight, MinusCircle, BookmarkPlus, AlertTriangle, BarChart3, TrendingUp, TrendingDown, CheckCircle2, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import ScannerFilters, { ScannerFilterValues, defaultFilters } from '@/components/scanner/scanner-filters';
 import ScannerControls from '@/components/scanner/scanner-controls';
 import { TickerLimitSettings } from '@/components/scanner/ticker-limit-settings';
+import { RefreshDataButton } from '@/components/dashboard/refresh-data-button';
 import { SCANNER_CONFIG } from '@/lib/config';
 import { fetchScannerResults, fetchWatchlist, addToWatchlist } from '@/lib/api';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -86,6 +89,7 @@ export function ScannerDashboard() {
   const [watchlistNote, setWatchlistNote] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   // Initialize data collection when component mounts
   useEffect(() => {
@@ -154,7 +158,7 @@ export function ScannerDashboard() {
       const scanOptions = {
         symbol: selectedTicker !== 'all' ? selectedTicker : undefined,
         setupType: setupType !== 'all' ? setupType : undefined,
-        refresh: true,
+        refresh: false, // Don't force refresh since options data is not available
         limit: tickerLimit,
         // Apply advanced filters if filter has been applied
         filters: isFilterApplied ? {
@@ -173,7 +177,30 @@ export function ScannerDashboard() {
 
       if (selectedTicker && selectedTicker !== 'all') {
         // Single ticker scan
-        setResults({ [selectedTicker]: data.setup });
+        if (data.setup) {
+          // Transform the setup to match expected format
+          const transformedSetup = {
+            ticker: data.setup.symbol,
+            setup_type: data.setup.setupType,
+            strength: parseStrengthToNumber(data.setup.setupStrength),
+            entry_price: data.setup.entryPrice,
+            stop_loss: data.setup.stopLoss,
+            target_price: data.setup.targetPrice,
+            risk_reward_ratio: data.setup.riskRewardRatio,
+            date: new Date().toISOString().split('T')[0],
+            timestamp: Date.now(),
+            emaTrend: data.setup.emaTrend,
+            pcr: data.setup.pcr,
+            rsi: data.setup.rsi,
+            iv: data.setup.iv,
+            gamma: data.setup.gamma,
+            vanna: data.setup.vanna,
+            charm: data.setup.charm
+          };
+          setResults({ [selectedTicker]: transformedSetup });
+        } else {
+          setResults({});
+        }
       } else {
         // All tickers scan - transform to expected format
         const formattedResults: ScannerResult = {};
@@ -252,26 +279,30 @@ export function ScannerDashboard() {
     switch (type) {
       case 'bullish':
         return {
-          color: 'bg-green-500',
-          textColor: 'text-green-500',
+          color: 'border-green-500',
+          textColor: 'text-green-600 dark:text-green-400',
+          bgColor: 'bg-green-50 dark:bg-green-950/20',
           icon: <ArrowUpRight className="h-5 w-5" />
         };
       case 'bearish':
         return {
-          color: 'bg-red-500',
-          textColor: 'text-red-500',
+          color: 'border-red-500',
+          textColor: 'text-red-600 dark:text-red-400',
+          bgColor: 'bg-red-50 dark:bg-red-950/20',
           icon: <ArrowDownRight className="h-5 w-5" />
         };
       case 'neutral':
         return {
-          color: 'bg-yellow-500',
-          textColor: 'text-yellow-500',
+          color: 'border-yellow-500',
+          textColor: 'text-yellow-600 dark:text-yellow-400',
+          bgColor: 'bg-yellow-50 dark:bg-yellow-950/20',
           icon: <MinusCircle className="h-5 w-5" />
         };
       default:
         return {
-          color: 'bg-gray-500',
+          color: 'border-gray-500',
           textColor: 'text-gray-500',
+          bgColor: '',
           icon: null
         };
     }
@@ -642,10 +673,15 @@ export function ScannerDashboard() {
         <div className="md:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Options-Technical Hybrid Scanner</CardTitle>
-              <CardDescription>
-                Scan for trading opportunities using options and technical analysis
-              </CardDescription>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Options-Technical Hybrid Scanner</CardTitle>
+                  <CardDescription>
+                    Scan for trading opportunities using options and technical analysis
+                  </CardDescription>
+                </div>
+                <RefreshDataButton onRefresh={runScanner} />
+              </div>
             </CardHeader>
             <CardContent>
               <ScannerControls
@@ -725,31 +761,31 @@ export function ScannerDashboard() {
                     {Object.entries(filteredResults).map(([ticker, setup]) => {
                       const matchesAllFilters = isFilterApplied && setup && (setup as FilteredSetup).matchesAllFilters;
                       return (
-                        <Card
-                          key={ticker}
-                          className={`overflow-hidden transition-all duration-300
-                            ${setup ? 'border-l-4 ' + getSetupProperties(setup.setup_type).color : ''}
-                            ${matchesAllFilters ? 'shadow-lg ring-2 ring-blue-400 dark:ring-blue-600' : ''}
-                            ${(setup && setup.strength >= 80 && matchesAllFilters) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}
-                            ${isInWatchlist(ticker) ? 'border-r-4 border-r-blue-400 dark:border-r-blue-600' : ''}
-                          `}
-                        >
+                        <Link key={ticker} href={`/ticker/${ticker}`} className="block">
+                          <Card
+                            className={`overflow-hidden transition-all duration-300 hover:shadow-lg cursor-pointer
+                              ${setup ? 'border-l-2 ' + getSetupProperties(setup.setup_type).color : ''}
+                              ${matchesAllFilters ? 'ring-1 ring-blue-200 dark:ring-blue-800' : ''}
+                              ${isInWatchlist(ticker) ? 'border-r-2 border-r-blue-400 dark:border-r-blue-600' : ''}
+                            `}
+                          >
                           <CardHeader className="pb-2">
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-2">
-                                <CardTitle className={`text-lg ${isInWatchlist(ticker) ? 'flex items-center' : ''}`}>
+                                <CardTitle className={`text-lg flex items-center gap-1 ${isInWatchlist(ticker) ? '' : ''}`}>
                                   {ticker}
                                   {isInWatchlist(ticker) && (
-                                    <CheckCircle2 className="h-4 w-4 ml-1 text-blue-600 dark:text-blue-400" />
+                                    <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                   )}
+                                  <ExternalLink className="h-3.5 w-3.5" />
                                 </CardTitle>
                                 {isFilterApplied && matchesAllFilters && (
-                                  <Badge className="bg-blue-500 hover:bg-blue-600" title="Matches all filter criteria">
+                                  <Badge variant="secondary" className="text-xs" title="Matches all filter criteria">
                                     Perfect Match
                                   </Badge>
                                 )}
                                 {setup && setup.strength >= 80 && matchesAllFilters && (
-                                  <Badge className="bg-purple-500 hover:bg-purple-600" title="High strength and matches all filters">
+                                  <Badge variant="secondary" className="text-xs" title="High strength and matches all filters">
                                     Top Match
                                   </Badge>
                                 )}
@@ -770,7 +806,11 @@ export function ScannerDashboard() {
                                   <Button
                                     variant={isInWatchlist(ticker) ? "secondary" : "ghost"}
                                     size="icon"
-                                    onClick={() => openWatchlistDialog(ticker, setup)}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      openWatchlistDialog(ticker, setup);
+                                    }}
                                     title={isInWatchlist(ticker)
                                       ? "Already in watchlist - click to update"
                                       : "Add to watchlist"}
@@ -787,37 +827,37 @@ export function ScannerDashboard() {
                             {isFilterApplied && setup && (setup as FilteredSetup).matchedFilters && (
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {(setup as FilteredSetup).matchedFilters?.pcr && (
-                                  <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300">
+                                  <Badge variant="outline" className="text-xs">
                                     PCR
                                   </Badge>
                                 )}
                                 {(setup as FilteredSetup).matchedFilters?.rsi && (
-                                  <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300">
+                                  <Badge variant="outline" className="text-xs">
                                     RSI
                                   </Badge>
                                 )}
                                 {(setup as FilteredSetup).matchedFilters?.iv && (
-                                  <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300">
+                                  <Badge variant="outline" className="text-xs">
                                     IV
                                   </Badge>
                                 )}
                                 {(setup as FilteredSetup).matchedFilters?.gex && filters.gex !== 'all' && (
-                                  <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300">
+                                  <Badge variant="outline" className="text-xs">
                                     GEX
                                   </Badge>
                                 )}
                                 {filters.includeGamma && (setup as FilteredSetup).matchedFilters?.gamma && (
-                                  <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300">
+                                  <Badge variant="outline" className="text-xs">
                                     Gamma
                                   </Badge>
                                 )}
                                 {filters.includeVanna && (setup as FilteredSetup).matchedFilters?.vanna && (
-                                  <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300">
+                                  <Badge variant="outline" className="text-xs">
                                     Vanna
                                   </Badge>
                                 )}
                                 {filters.includeCharm && (setup as FilteredSetup).matchedFilters?.charm && (
-                                  <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300">
+                                  <Badge variant="outline" className="text-xs">
                                     Charm
                                   </Badge>
                                 )}
@@ -911,7 +951,8 @@ export function ScannerDashboard() {
                             </div>
                           )}
                         </CardContent>
-                        </Card>
+                          </Card>
+                        </Link>
                       );
                     })}
 
@@ -951,11 +992,15 @@ export function ScannerDashboard() {
                       </thead>
                       <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
                         {Object.entries(filteredResults).map(([ticker, setup]) => (
-                          <tr key={ticker} className={`
-                            ${isFilterApplied && setup && (setup as FilteredSetup).matchesAllFilters ? 'bg-blue-50 dark:bg-blue-950/30' : ''}
-                            ${(setup && setup.strength >= 80 && (setup as FilteredSetup).matchesAllFilters) ? 'border-l-4 border-purple-500' : ''}
-                            ${isInWatchlist(ticker) ? 'border-r-4 border-r-blue-400 dark:border-r-blue-600' : ''}
-                          `}>
+                          <tr 
+                            key={ticker} 
+                            onClick={() => router.push(`/ticker/${ticker}`)}
+                            className={`
+                              cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors
+                              ${isFilterApplied && setup && (setup as FilteredSetup).matchesAllFilters ? 'bg-blue-50 dark:bg-blue-950/30' : ''}
+                              ${(setup && setup.strength >= 80 && (setup as FilteredSetup).matchesAllFilters) ? 'border-l-4 border-purple-500' : ''}
+                              ${isInWatchlist(ticker) ? 'border-r-4 border-r-blue-400 dark:border-r-blue-600' : ''}
+                            `}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <div className="flex items-center gap-2">
                                 <span className="flex items-center">
@@ -963,6 +1008,7 @@ export function ScannerDashboard() {
                                   {isInWatchlist(ticker) && (
                                     <CheckCircle2 className="h-4 w-4 ml-1 text-blue-600 dark:text-blue-400" />
                                   )}
+                                  <ExternalLink className="h-3.5 w-3.5 ml-1" />
                                 </span>
                                 {isFilterApplied && setup && (setup as FilteredSetup).matchesAllFilters && (
                                   <Badge className="bg-blue-500 hover:bg-blue-600" title="Matches all filter criteria">
@@ -1055,7 +1101,10 @@ export function ScannerDashboard() {
                                 <Button
                                   variant={isInWatchlist(ticker) ? "secondary" : "ghost"}
                                   size="icon"
-                                  onClick={() => openWatchlistDialog(ticker, setup)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openWatchlistDialog(ticker, setup);
+                                  }}
                                   title={isInWatchlist(ticker)
                                     ? "Already in watchlist - click to update"
                                     : "Add to watchlist"}

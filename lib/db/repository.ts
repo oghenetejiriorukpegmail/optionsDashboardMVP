@@ -382,3 +382,69 @@ export async function getLatestMarketContext(ticker: string): Promise<any> {
     sentiment
   };
 }
+
+// Get latest stock data
+export async function getLatestStockData(ticker: string): Promise<any> {
+  const db = await getDb();
+  
+  return db.get(
+    `SELECT * FROM stock_data 
+     WHERE ticker = ? 
+     ORDER BY timestamp DESC 
+     LIMIT 1`,
+    [ticker]
+  );
+}
+
+// Get latest technical indicators
+export async function getLatestTechnicalIndicators(ticker: string): Promise<any> {
+  const db = await getDb();
+  
+  return db.get(
+    `SELECT * FROM technical_indicators 
+     WHERE ticker = ? 
+     ORDER BY timestamp DESC 
+     LIMIT 1`,
+    [ticker]
+  );
+}
+
+// Get latest market sentiment
+export async function getLatestMarketSentiment(ticker: string): Promise<any> {
+  const db = await getDb();
+  
+  return db.get(
+    `SELECT * FROM market_sentiment 
+     WHERE ticker = ? 
+     ORDER BY timestamp DESC 
+     LIMIT 1`,
+    [ticker]
+  );
+}
+
+// Get historical data for charts
+export async function getHistoricalData(ticker: string, days: number = 30): Promise<any> {
+  const db = await getDb();
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  const startDate = date.toISOString().split('T')[0];
+  
+  const stockData = await db.all(
+    `SELECT * FROM stock_data 
+     WHERE ticker = ? AND date >= ? 
+     ORDER BY timestamp ASC`,
+    [ticker, startDate]
+  );
+  
+  const technicalData = await db.all(
+    `SELECT * FROM technical_indicators 
+     WHERE ticker = ? AND date >= ? 
+     ORDER BY timestamp ASC`,
+    [ticker, startDate]
+  );
+  
+  return {
+    stockData,
+    technicalData
+  };
+}

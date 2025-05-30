@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
+import { fetchScannerResults } from "@/lib/api";
 import {
   CheckCircle,
   XCircle,
@@ -24,10 +25,12 @@ import { toast } from "../ui/sonner";
 import { addToWatchlist } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { RuleCheckItem } from "../RuleCheckItem";
+import { TickerSelector } from "../ui/ticker-selector";
 
 interface ConfirmationTimingProps {
-  symbol: string;
-  stockData: {
+  symbol?: string;
+  ticker?: string; // Alternative prop name
+  stockData?: {
     price: number;
     setupType: string;
     emaTrend: string;
@@ -62,8 +65,110 @@ interface ConfirmationTimingProps {
   };
 }
 
-export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProps) {
+export function ConfirmationTiming({ symbol: propSymbol, ticker: propTicker, stockData: propStockData }: ConfirmationTimingProps) {
+  const [selectedTicker, setSelectedTicker] = useState(propSymbol || propTicker || '');
+  const symbol = selectedTicker || propSymbol || propTicker || 'AAPL';
   const [selectedTimeframe, setSelectedTimeframe] = useState<'short' | 'medium' | 'long'>('short');
+  const [stockData, setStockData] = useState(propStockData);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch data when ticker changes
+  useEffect(() => {
+    if (selectedTicker) {
+      fetchTickerData();
+    }
+  }, [selectedTicker]);
+
+  const fetchTickerData = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchScannerResults({ symbol });
+      if (data.setup) {
+        // Transform scanner data to match expected format
+        setStockData({
+          price: data.setup.price || 0,
+          setupType: data.setup.setupType || 'neutral',
+          emaTrend: data.setup.emaTrend || 'Unknown',
+          pcr: data.setup.pcr || 1.0,
+          rsi: data.setup.rsi || 50,
+          stochasticRsi: data.setup.stochRsi || 50,
+          iv: data.setup.iv || 30,
+          gex: 0,
+          volume: {
+            current: 1000000,
+            percentChange: 10
+          },
+          keyLevels: {
+            support: [data.setup.stopLoss || 0],
+            resistance: [data.setup.targetPrice || 0],
+            maxPain: data.setup.entryPrice || 0
+          },
+          recommendation: {
+            action: data.setup.setupType === 'bullish' ? 'Buy Call' : data.setup.setupType === 'bearish' ? 'Buy Put' : 'Hold',
+            target: data.setup.targetPrice || 'N/A',
+            stop: data.setup.stopLoss || 'N/A',
+            expiration: '30 DTE',
+            strike: data.setup.entryPrice || 0
+          },
+          historicalData: []
+        });
+      } else {
+        // Use default data when no setup is returned
+        setStockData({
+          price: 100,
+          setupType: 'neutral',
+          emaTrend: 'Unknown',
+          pcr: 1.0,
+          rsi: 50,
+          stochasticRsi: 50,
+          iv: 30,
+          gex: 0,
+          volume: { current: 1000000, percentChange: 0 },
+          keyLevels: { support: [95], resistance: [105], maxPain: 100 },
+          recommendation: { action: 'Hold', target: 'N/A', stop: 'N/A', expiration: '30 DTE', strike: 100 },
+          historicalData: []
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching ticker data:', error);
+      // Use default data
+      setStockData({
+        price: 100,
+        setupType: 'neutral',
+        emaTrend: 'Unknown',
+        pcr: 1.0,
+        rsi: 50,
+        stochasticRsi: 50,
+        iv: 30,
+        gex: 0,
+        volume: { current: 1000000, percentChange: 0 },
+        keyLevels: { support: [95], resistance: [105], maxPain: 100 },
+        recommendation: { action: 'Hold', target: 'N/A', stop: 'N/A', expiration: '30 DTE', strike: 100 },
+        historicalData: []
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <TickerSelector 
+              value={selectedTicker}
+              onValueChange={setSelectedTicker}
+              placeholder="Select ticker..."
+            />
+            <div className="flex items-center justify-center flex-1">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+    );
+  }
   
   // Get confirmation status
   const confirmationStatus = analyzeConfirmation(stockData || {});
@@ -135,15 +240,39 @@ export function ConfirmationTiming({ symbol, stockData }: ConfirmationTimingProp
     }
   };
 
+  if (!selectedTicker && !propSymbol && !propTicker) {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <TickerSelector 
+              value={selectedTicker}
+              onValueChange={setSelectedTicker}
+              placeholder="Select ticker..."
+            />
+            <p className="text-muted-foreground">Select a ticker to view confirmation & timing analysis</p>
+          </div>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
     <Card className="w-full">
       <CardHeader>
         <div className="flex justify-between items-start">
-          <div>
-            <CardTitle>Confirmation & Timing for {symbol}</CardTitle>
-            <CardDescription>
-              Entry and exit signals for optimal trade timing
-            </CardDescription>
+          <div className="flex items-start gap-4">
+            <TickerSelector 
+              value={selectedTicker}
+              onValueChange={setSelectedTicker}
+              placeholder="Select ticker..."
+            />
+            <div>
+              <CardTitle>Confirmation & Timing for {symbol}</CardTitle>
+              <CardDescription>
+                Entry and exit signals for optimal trade timing
+              </CardDescription>
+            </div>
           </div>
           <div>
             <Badge 

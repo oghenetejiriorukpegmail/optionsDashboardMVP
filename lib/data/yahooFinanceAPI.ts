@@ -2,7 +2,6 @@ import axios from 'axios';
 // import yahooStockAPI from 'yahoo-stock-api'; // Removed
 import { SCANNER_CONFIG, TECHNICAL_INDICATOR_CONFIG } from '@/lib/config';
 import { nasdaq100Tickers } from './nasdaq100';
-import * as mockDataGenerator from './mockDataGenerator';
 
 // Base URL for Yahoo Finance API
 const YAHOO_FINANCE_BASE_URL = 'https://query1.finance.yahoo.com';
@@ -20,17 +19,8 @@ const API_CACHE_DURATION = SCANNER_CONFIG.CACHE_DURATION;
 // Cache for API responses
 const apiCache: Record<string, { timestamp: number; data: any }> = {};
 
-// Flag to track if Yahoo API is experiencing rate limiting
-let isYahooApiRateLimited = false;
+// Rate limit configuration
 const RATE_LIMIT_RESET_INTERVAL = 5 * 60 * 1000; // 5 minutes
-
-// Set up automatic reset of rate limit flag
-setInterval(() => {
-  if (isYahooApiRateLimited) {
-    console.log('Resetting Yahoo API rate limit flag...');
-    isYahooApiRateLimited = false;
-  }
-}, RATE_LIMIT_RESET_INTERVAL);
 
 /**
  * Helper function to add delay between API calls
@@ -47,20 +37,16 @@ const handleRateLimiting = async (error: any, attempt: number): Promise<number> 
     const backoffTime = Math.min(API_RETRY_DELAY * Math.pow(2, attempt), 10000);
     console.log(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
     
-    // If multiple 429 errors occur or it's the last attempt, set the rate limit flag
+    // If multiple 429 errors occur or it's the last attempt, throw error
     if (attempt >= API_RETRY_ATTEMPTS - 1) {
-      console.log('Multiple rate limit errors detected. Switching to mock data mode.');
-      isYahooApiRateLimited = true;
+      throw new Error('Rate limit exceeded after multiple attempts');
     }
     
     await delay(backoffTime);
     return backoffTime;
   } else if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-    // Auth errors should also trigger mock data mode
-    console.log('Authentication error detected. Switching to mock data mode.');
-    isYahooApiRateLimited = true;
-    await delay(API_RETRY_DELAY);
-    return API_RETRY_DELAY;
+    // Auth errors should throw
+    throw new Error(`Authentication error: ${error.response.status}`);
   }
   
   // For other errors, use standard delay
@@ -104,14 +90,7 @@ function calculateIndicators(historicalData: any[]) {
     }));
   } catch (error) {
     console.error("Error calculating indicators:", error);
-    return historicalData.map(item => ({
-      ...item,
-      ema10: item.close * 1.01,
-      ema20: item.close * 1.0,
-      ema50: item.close * 0.99,
-      rsi: 50,
-      stochasticRsi: 50
-    }));
+    throw error;
   }
 }
 
@@ -136,7 +115,7 @@ function calculateEMA(data: any[], period: number) {
     return result;
   } catch (error) {
     console.error("Error calculating EMA:", error);
-    return Array(data.length).fill(null);
+    throw error;
   }
 }
 
@@ -172,7 +151,7 @@ function calculateRSI(data: any[], period: number) {
     return result;
   } catch (error) {
     console.error("Error calculating RSI:", error);
-    return Array(data.length).fill(50); // Default neutral RSI
+    throw error;
   }
 }
 
@@ -201,7 +180,7 @@ function calculateStochasticRSI(rsiValues: number[], period: number) {
     return result;
   } catch (error) {
     console.error("Error calculating Stochastic RSI:", error);
-    return Array(rsiValues.length).fill(50); // Default neutral Stochastic RSI
+    throw error;
   }
 }
 
@@ -228,7 +207,7 @@ function determineEmaTrend(lastBar: any) {
     }
   } catch (error) {
     console.error("Error determining EMA trend:", error);
-    return 'Flat'; // Default to flat
+    throw error;
   }
 }
 
@@ -251,64 +230,11 @@ function determineSetupType(lastBar: any, emaTrend: string, pcr: number) {
     }
   } catch (error) {
     console.error("Error determining setup type:", error);
-    return 'neutral'; // Default to neutral
+    throw error;
   }
 }
 
-/**
- * Generate mock historical data for a symbol if real API fails
- */
-function generateMockHistoricalData(symbol: string) {
-  console.log(`Using mock historical data for ${symbol} due to API rate limiting`);
-  
-  // Generate a mock stock data object
-  const mockData = mockDataGenerator.generateStockData(symbol);
-  
-  // Transform to match the format expected by consumers
-  const formattedData = mockData.historicalData.map(bar => ({
-    date: bar.date,
-    timestamp: Math.floor(new Date(bar.date).getTime() / 1000),
-    open: bar.close * 0.99,
-    high: bar.close * 1.02,
-    low: bar.close * 0.98,
-    close: bar.close,
-    volume: bar.volume,
-    adjClose: bar.close,
-    // Include indicators directly
-    ema10: bar.ema10,
-    ema20: bar.ema20, 
-    ema50: bar.ema50,
-    rsi: bar.rsi,
-    stochasticRsi: mockData.stochasticRsi
-  }));
-  
-  return formattedData;
-}
 
-/**
- * Generate mock stock quote if real API fails
- */
-function generateMockStockInfo(symbol: string) {
-  console.log(`Using mock stock info for ${symbol} due to API rate limiting`);
-  
-  // Generate a mock stock data object
-  const mockData = mockDataGenerator.generateStockData(symbol);
-  
-  // Transform to match the Yahoo Finance API response format
-  return {
-    symbol: symbol,
-    regularMarketPrice: mockData.price,
-    bid: mockData.price * 0.999,
-    ask: mockData.price * 1.001,
-    regularMarketVolume: mockData.volume.current,
-    averageDailyVolume10Day: mockData.volume.current * (1 - mockData.volume.percentChange/100),
-    regularMarketOpen: mockData.price * 0.99,
-    regularMarketDayHigh: mockData.price * 1.02,
-    regularMarketDayLow: mockData.price * 0.98,
-    regularMarketTime: Math.floor(Date.now()/1000),
-    impliedVolatility: mockData.iv / 100
-  };
-}
 
 /**
  * Fetches historical data for a symbol from Yahoo Finance with retry logic and caching
@@ -323,15 +249,6 @@ export async function fetchHistoricalData(symbol: string, period = '3mo', interv
       return apiCache[cacheKey].data;
     }
     
-    // If Yahoo API is rate limited, use mock data instead
-    if (isYahooApiRateLimited) {
-      const mockData = generateMockHistoricalData(symbol);
-      apiCache[cacheKey] = {
-        timestamp: now,
-        data: mockData,
-      };
-      return mockData;
-    }
     
     console.log(`Fetching historical data for ${symbol} (period: ${period}, interval: ${interval})...`);
     
@@ -392,27 +309,12 @@ export async function fetchHistoricalData(symbol: string, period = '3mo', interv
       attempts++;
     }
     
-    console.log(`Failed to fetch historical data for ${symbol} after ${API_RETRY_ATTEMPTS} attempts, using mock data`);
-    isYahooApiRateLimited = true;
-    
-    // Fallback to mock data
-    const mockData = generateMockHistoricalData(symbol);
-    apiCache[cacheKey] = {
-      timestamp: now,
-      data: mockData,
-    };
-    return mockData;
+    console.log(`Failed to fetch historical data for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
+    throw new Error(`Failed to fetch historical data for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
 
   } catch (error) {
     console.error(`Error fetching historical data for ${symbol}:`, error);
-    
-    // Fallback to mock data
-    const mockData = generateMockHistoricalData(symbol);
-    apiCache[cacheKey] = {
-      timestamp: now,
-      data: mockData,
-    };
-    return mockData;
+    throw error;
   }
 }
 
@@ -429,15 +331,6 @@ export async function fetchStockInfo(symbol: string) {
       return apiCache[cacheKey].data;
     }
     
-    // If Yahoo API is rate limited, use mock data instead
-    if (isYahooApiRateLimited) {
-      const mockData = generateMockStockInfo(symbol);
-      apiCache[cacheKey] = {
-        timestamp: now,
-        data: mockData,
-      };
-      return mockData;
-    }
     
     console.log(`Fetching stock info for ${symbol}...`);
     
@@ -477,27 +370,12 @@ export async function fetchStockInfo(symbol: string) {
       attempts++;
     }
     
-    console.log(`Failed to fetch stock info for ${symbol} after ${API_RETRY_ATTEMPTS} attempts, using mock data`);
-    isYahooApiRateLimited = true;
-    
-    // Fallback to mock data
-    const mockData = generateMockStockInfo(symbol);
-    apiCache[cacheKey] = {
-      timestamp: now,
-      data: mockData,
-    };
-    return mockData;
+    console.log(`Failed to fetch stock info for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
+    throw new Error(`Failed to fetch stock info for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
 
   } catch (error) {
     console.error(`Error fetching stock info for ${symbol}:`, error);
-    
-    // Fallback to mock data
-    const mockData = generateMockStockInfo(symbol);
-    apiCache[cacheKey] = {
-      timestamp: now,
-      data: mockData,
-    };
-    return mockData;
+    throw error;
   }
 }
 
@@ -523,7 +401,7 @@ function calculatePCR(symbol: string) {
     return pcr;
   } catch (error) {
     console.error(`Error calculating PCR for ${symbol}:`, error);
-    return 1.0; // Default to neutral
+    throw error;
   }
 }
 
@@ -566,12 +444,7 @@ function calculateKeyLevels(price: number, historicalData: any[]) {
     };
   } catch (error) {
     console.error(`Error calculating key levels:`, error);
-    // Return default levels based on current price
-    return {
-      support: [Math.round(price * 0.95 * 100) / 100, Math.round(price * 0.97 * 100) / 100],
-      resistance: [Math.round(price * 1.03 * 100) / 100, Math.round(price * 1.05 * 100) / 100],
-      maxPain: Math.round(price * 100) / 100
-    };
+    throw error;
   }
 }
 
@@ -592,7 +465,7 @@ function determineSetupStrength(setupType: string, rsi: number) {
     }
   } catch (error) {
     console.error("Error determining setup strength:", error);
-    return 'medium'; // Default to medium
+    throw error;
   }
 }
 
@@ -632,13 +505,7 @@ function generateRecommendation(price: number, setupType: string, keyLevels: any
     }
   } catch (error) {
     console.error("Error generating recommendation:", error);
-    return {
-      action: 'Monitor',
-      target: 'N/A',
-      stop: 'N/A',
-      expiration: 'N/A',
-      strike: Math.round(price)
-    };
+    throw error;
   }
 }
 
@@ -704,26 +571,7 @@ export async function generateStockAnalysis(symbol: string) {
     };
   } catch (error) {
     console.error(`Error generating stock analysis for ${symbol}:`, error);
-    
-    // If any part fails, fall back to complete mock data
-    const mockStock = mockDataGenerator.generateStockData(symbol);
-    
-    return {
-      symbol,
-      price: mockStock.price,
-      setupType: mockStock.setupType,
-      setupStrength: mockStock.setupStrength,
-      emaTrend: mockStock.emaTrend,
-      pcr: mockStock.pcr,
-      rsi: mockStock.rsi,
-      stochasticRsi: mockStock.stochasticRsi,
-      volume: mockStock.volume,
-      iv: mockStock.iv,
-      gex: mockStock.gex,
-      keyLevels: mockStock.keyLevels,
-      recommendation: mockStock.recommendation,
-      historicalData: mockStock.historicalData
-    };
+    throw error;
   }
 }
 
@@ -745,8 +593,7 @@ export async function fetchMultipleStockAnalyses(symbols: string[]) {
         return generateStockAnalysis(symbol)
           .catch(error => {
             console.error(`Error analyzing ${symbol}:`, error);
-            // Fallback to mock data on error
-            return mockDataGenerator.generateStockData(symbol);
+            throw error;
           });
       });
       
@@ -762,9 +609,7 @@ export async function fetchMultipleStockAnalyses(symbols: string[]) {
     return results;
   } catch (error) {
     console.error('Error fetching multiple stock analyses:', error);
-    
-    // If all fails, fall back to completely mock data
-    return symbols.map(symbol => mockDataGenerator.generateStockData(symbol));
+    throw error;
   }
 }
 
@@ -815,30 +660,15 @@ export async function generateNasdaq100ScannerResults(symbolsToFetch: string[] =
     };
   } catch (error) {
     console.error('Error generating NASDAQ 100 scanner results:', error);
-    
-    // Fallback to mock data
-    console.log('Falling back to mock scanner data');
-    return mockDataGenerator.generateNasdaq100ScannerResults();
+    throw error;
   }
 }
 
 // Clear cache function for testing
 export function clearCache() {
   Object.keys(apiCache).forEach(key => delete apiCache[key]);
-  isYahooApiRateLimited = false;
-  console.log('Cache and rate limit flag cleared');
+  console.log('Cache cleared');
 }
 
-// Export list of NASDAQ 100 stocks for reference
-export const nasdaq100Tickers = [
-  'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'GOOG', 'META', 'TSLA', 'NVDA', 'NFLX', 'PYPL',
-  'ADBE', 'INTC', 'CMCSA', 'PEP', 'CSCO', 'AVGO', 'COST', 'QCOM', 'TXN', 'TMUS',
-  'AMGN', 'SBUX', 'INTU', 'AMD', 'ISRG', 'CHTR', 'MDLZ', 'GILD', 'BKNG', 'MU',
-  'ADP', 'AMAT', 'MRNA', 'ADI', 'FISV', 'LRCX', 'ATVI', 'CSX', 'ADSK', 'REGN',
-  'ILMN', 'MELI', 'MAR', 'VRTX', 'NXPI', 'KLAC', 'KHC', 'MNST', 'ASML', 'WDAY',
-  'EXC', 'ALGN', 'IDXX', 'CDNS', 'DXCM', 'EA', 'AEP', 'XEL', 'CTAS', 'SNPS',
-  'BIIB', 'XLNX', 'ORLY', 'WBA', 'PCAR', 'ANSS', 'FAST', 'DLTR', 'CTSH', 'PAYX',
-  'MCHP', 'ALXN', 'SWKS', 'CPRT', 'SIRI', 'VRSN', 'CERN', 'NTAP', 'EXPE', 'FOXA',
-  'FOX', 'CDW', 'TCOM', 'ROST', 'VRSK', 'NTES', 'SPLK', 'CHKP', 'INCY', 'LULU',
-  'MTCH', 'ULTA', 'DOCU', 'ZM', 'OKTA', 'TEAM'
-];
+// Re-export nasdaq100Tickers for convenience
+export { nasdaq100Tickers };

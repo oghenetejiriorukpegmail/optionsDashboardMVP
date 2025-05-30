@@ -40,9 +40,14 @@ export async function fetchOptionsChain(symbol: string, expiration?: string) {
 /**
  * Fetch technical indicators for a specific symbol
  */
-export async function fetchTechnicalIndicators(symbol: string) {
+export async function fetchTechnicalIndicators(symbol: string, options?: { refresh?: boolean }) {
   try {
-    const response = await fetch(`/api/historical-data?ticker=${symbol}&type=technical`);
+    let url = `/api/technical-indicators?symbol=${symbol}`;
+    if (options?.refresh) {
+      url += '&refresh=true';
+    }
+    
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch technical indicators: ${response.status} ${response.statusText}`);
     }

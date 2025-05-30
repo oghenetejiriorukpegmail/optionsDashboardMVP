@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../ui/card";
-import { fetchTechnicalIndicators } from "@/lib/api";
+import { fetchTechnicalIndicators, fetchScannerResults } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Button } from "../ui/button";
 import { Line } from "react-chartjs-2";
@@ -29,8 +29,10 @@ import {
   Loader2,
   Share2,
   ChevronRight,
-  ArrowUpRight
+  ArrowUpRight,
+  AlertTriangle
 } from "lucide-react";
+import { Badge } from "../ui/badge";
 
 // Register ChartJS components
 ChartJS.register(
@@ -45,10 +47,19 @@ ChartJS.register(
 );
 
 interface MarketContextProps {
-  symbol: string;
+  symbol?: string;
+  ticker?: string; // Alternative prop name
 }
 
-export function MarketContextAnalysis({ symbol }: MarketContextProps) {
+// Create a simple wrapper component
+export function MarketAnalysis({ ticker }: { ticker?: string }) {
+  const symbol = ticker || 'AAPL';
+  console.log('MarketAnalysis component rendering with ticker:', ticker);
+  return <MarketContextAnalysis symbol={symbol} ticker={ticker} />;
+}
+
+export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketContextProps) {
+  const symbol = propSymbol || ticker || 'AAPL';
   const [indicators, setIndicators] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -56,7 +67,9 @@ export function MarketContextAnalysis({ symbol }: MarketContextProps) {
   async function loadIndicators() {
     setLoading(true);
     try {
+      console.log(`Loading indicators for ${symbol}...`);
       const data = await fetchTechnicalIndicators(symbol);
+      console.log('Technical indicators data:', data);
       setIndicators(data);
     } catch (error) {
       console.error("Error fetching technical indicators:", error);
@@ -104,7 +117,7 @@ export function MarketContextAnalysis({ symbol }: MarketContextProps) {
     );
   }
 
-  if (!indicators || !indicators.historicalData) {
+  if (!indicators || !indicators.historicalData || indicators.error) {
     return (
       <Card className="w-full bg-gradient-to-br from-background to-muted/50 relative overflow-hidden border">
         <div className="absolute right-0 top-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-primary/20 blur-xl"></div>
@@ -425,14 +438,14 @@ export function MarketContextAnalysis({ symbol }: MarketContextProps) {
                         <span className={`font-mono ${
                           latestData.rsi > 70 ? 'text-red-600 dark:text-red-400' : 
                           latestData.rsi < 30 ? 'text-green-600 dark:text-green-400' : ''
-                        }`}>{latestData.rsi.toFixed(1)}</span>
+                        }`}>{latestData.rsi?.toFixed(1) || 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Stochastic RSI:</span>
                         <span className={`font-mono ${
                           latestData.stochasticRsi > 80 ? 'text-red-600 dark:text-red-400' : 
                           latestData.stochasticRsi < 20 ? 'text-green-600 dark:text-green-400' : ''
-                        }`}>{latestData.stochasticRsi.toFixed(1)}</span>
+                        }`}>{latestData.stochasticRsi?.toFixed(1) || 'N/A'}</span>
                       </div>
                     </div>
                   </div>
@@ -459,13 +472,13 @@ export function MarketContextAnalysis({ symbol }: MarketContextProps) {
                     
                     <div className="grid grid-cols-2 gap-2 p-2 rounded-md bg-muted/30">
                       <div className="text-sm font-medium">EMA (10):</div>
-                      <div className="text-sm font-mono text-right">${latestData.ema10.toFixed(2)}</div>
+                      <div className="text-sm font-mono text-right">${latestData.ema10?.toFixed(2) || 'N/A'}</div>
                       
                       <div className="text-sm font-medium">EMA (20):</div>
-                      <div className="text-sm font-mono text-right">${latestData.ema20.toFixed(2)}</div>
+                      <div className="text-sm font-mono text-right">${latestData.ema20?.toFixed(2) || 'N/A'}</div>
                       
                       <div className="text-sm font-medium">EMA (50):</div>
-                      <div className="text-sm font-mono text-right">${latestData.ema50.toFixed(2)}</div>
+                      <div className="text-sm font-mono text-right">${latestData.ema50?.toFixed(2) || 'N/A'}</div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2 p-2 rounded-md bg-muted/30">
@@ -597,15 +610,15 @@ export function MarketContextAnalysis({ symbol }: MarketContextProps) {
                   <div className="space-y-1 text-sm">
                     <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/20">
                       <span className="font-medium text-muted-foreground">10 EMA:</span>
-                      <span>${latestData.ema10.toFixed(2)}</span>
+                      <span>${latestData.ema10?.toFixed(2) || 'N/A'}</span>
                     </div>
                     <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/20">
                       <span className="font-medium text-muted-foreground">20 EMA:</span>
-                      <span>${latestData.ema20.toFixed(2)}</span>
+                      <span>${latestData.ema20?.toFixed(2) || 'N/A'}</span>
                     </div>
                     <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/20">
                       <span className="font-medium text-muted-foreground">50 EMA:</span>
-                      <span>${latestData.ema50.toFixed(2)}</span>
+                      <span>${latestData.ema50?.toFixed(2) || 'N/A'}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -693,7 +706,7 @@ export function MarketContextAnalysis({ symbol }: MarketContextProps) {
                     
                     <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/20">
                       <span className="font-medium text-sm text-muted-foreground">Average Volume (10d):</span>
-                      <span className="text-sm">{formatLargeNumber(indicators.volume.average)}</span>
+                      <span className="text-sm">{formatLargeNumber(indicators.volume?.average || indicators.volume?.current)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -775,7 +788,7 @@ export function MarketContextAnalysis({ symbol }: MarketContextProps) {
                       latestData.rsi > 70 ? 'text-red-600 dark:text-red-400' : 
                       latestData.rsi < 30 ? 'text-green-600 dark:text-green-400' : ''
                     }`}>
-                      {latestData.rsi.toFixed(1)}
+                      {latestData.rsi?.toFixed(1) || 'N/A'}
                     </div>
                     <div className={`px-2 py-0.5 text-xs rounded-full ${
                       latestData.rsi > 70 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 
@@ -831,7 +844,7 @@ export function MarketContextAnalysis({ symbol }: MarketContextProps) {
                       latestData.stochasticRsi > 80 ? 'text-red-600 dark:text-red-400' : 
                       latestData.stochasticRsi < 20 ? 'text-green-600 dark:text-green-400' : ''
                     }`}>
-                      {latestData.stochasticRsi.toFixed(1)}
+                      {latestData.stochasticRsi?.toFixed(1) || 'N/A'}
                     </div>
                     <div className={`px-2 py-0.5 text-xs rounded-full ${
                       latestData.stochasticRsi > 80 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 
@@ -1086,7 +1099,10 @@ function determineMomentumStatus(rsi: number, stochRsi: number) {
 }
 
 // Helper function to format large numbers
-function formatLargeNumber(num: number) {
+function formatLargeNumber(num: number | null | undefined) {
+  if (num === null || num === undefined) {
+    return 'N/A';
+  }
   if (num >= 1000000) {
     return `${(num / 1000000).toFixed(2)}M`;
   } else if (num >= 1000) {

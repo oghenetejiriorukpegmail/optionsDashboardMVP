@@ -2,6 +2,7 @@ import axios from 'axios';
 import * as talib from 'ta-lib';
 import { SCANNER_CONFIG, TECHNICAL_INDICATOR_CONFIG } from '@/lib/config';
 import { cachedFetch, cacheManager } from './cacheManager';
+import { makeAuthenticatedRequest } from './yahooFinanceAuth';
 
 // Types for Yahoo Finance API responses
 interface YahooQuote {
@@ -90,42 +91,14 @@ const CACHE_TTLS = {
 };
 
 /**
- * Fetch data from Yahoo Finance API with retries and exponential backoff
+ * Fetch data from Yahoo Finance API with authentication
  */
 async function fetchYahooFinanceApi<T>(url: string, params?: any): Promise<T> {
-  let attempts = 0;
-  
-  while (attempts < API_RETRY_ATTEMPTS) {
-    try {
-      const response = await axios.get(url, {
-        params,
-        headers: DEFAULT_HEADERS,
-      });
-      
-      return response.data;
-    } catch (error: any) {
-      attempts++;
-      console.error(`Error fetching from Yahoo Finance API (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
-      
-      // If we got a 429 (Too Many Requests) status code, wait longer
-      if (error.response && error.response.status === 429) {
-        const backoffTime = Math.min(API_RETRY_DELAY * Math.pow(2, attempts), 10000);
-        console.log(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
-        await delay(backoffTime);
-      } else {
-        // For other errors, use standard delay between retries
-        if (attempts < API_RETRY_ATTEMPTS) {
-          await delay(API_RETRY_DELAY);
-        }
-      }
-      
-      if (attempts >= API_RETRY_ATTEMPTS) {
-        throw new Error(`Failed after ${API_RETRY_ATTEMPTS} attempts: ${error.message || error}`);
-      }
-    }
+  try {
+    return await makeAuthenticatedRequest<T>(url, params);
+  } catch (error: any) {
+    throw new Error(`Yahoo Finance API error: ${error.message}`);
   }
-  
-  throw new Error(`Failed after ${API_RETRY_ATTEMPTS} attempts`);
 }
 
 /**
