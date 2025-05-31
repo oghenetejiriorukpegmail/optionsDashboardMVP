@@ -29,6 +29,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { SCANNER_CONFIG } from '@/lib/config';
 

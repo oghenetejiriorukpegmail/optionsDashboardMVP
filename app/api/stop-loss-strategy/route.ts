@@ -153,18 +153,13 @@ export async function POST(request: Request) {
         stopLossAmount = body.fixedDollarAmount;
         
         // Calculate stop price based on fixed dollar risk
-        if (body.tradeType === 'call' || body.tradeType === 'stock') {
-          if (body.tradeType === 'stock') {
-            stopLossPrice = body.entryPrice - stopLossAmount;
-          } else {
-            stopLossPrice = null; // Less relevant for options where we're focusing on premium value
-          }
-        } else if (body.tradeType === 'put') {
-          if (body.tradeType === 'stock') {
-            stopLossPrice = body.entryPrice + stopLossAmount;
-          } else {
-            stopLossPrice = null; // Less relevant for options
-          }
+        if (body.tradeType === 'stock') {
+          // For stock trades, assume long position (most common)
+          // Stop loss is below entry price
+          stopLossPrice = body.entryPrice - (stopLossAmount / 100); // Convert dollar amount to price points per share
+        } else if (body.tradeType === 'call' || body.tradeType === 'put') {
+          // For options, stop loss is typically based on premium value, not underlying price
+          stopLossPrice = null;
         } else if (body.tradeType === 'spread') {
           stopLossPrice = null; // Not relevant for spreads
         }

@@ -200,7 +200,7 @@ export default function EnhancedRsiChart({
     maintainAspectRatio: false,
     animation: showAnimation ? {
       duration: 800,
-      easing: 'easeOutQuart',
+      easing: 'easeOutQuart' as const,
     } : false,
     interaction: {
       mode: 'index' as const,
@@ -241,17 +241,17 @@ export default function EnhancedRsiChart({
         boxPadding: 6,
         usePointStyle: true,
         callbacks: {
-          title: (tooltipItems) => {
+          title: ((tooltipItems: any) => {
             return data[tooltipItems[0].dataIndex].date;
-          },
-          label: (context) => {
+          }) as any,
+          label: ((context: any) => {
             const index = context.dataIndex;
             const point = data[index];
             const label = context.dataset.label || '';
             
             return `${label}: ${context.raw as number}`;
-          },
-          afterBody: (tooltipItems) => {
+          }) as any,
+          afterBody: ((tooltipItems: any) => {
             const index = tooltipItems[0].dataIndex;
             const rsi = data[index].rsi;
             
@@ -260,7 +260,7 @@ export default function EnhancedRsiChart({
             else if (rsi < 30) status = 'Oversold';
             
             return [`Status: ${status}`];
-          },
+          }) as any,
         },
       },
     },
@@ -358,14 +358,14 @@ export default function EnhancedRsiChart({
           </h4>
           <Badge variant={
             rsiStatus.status === 'overbought' ? "destructive" : 
-            rsiStatus.status === 'oversold' ? "success" : 
+            rsiStatus.status === 'oversold' ? "secondary" : 
             "outline"
           }>
             {rsiStatus.status.charAt(0).toUpperCase() + rsiStatus.status.slice(1)} ({rsiStatus.value.toFixed(1)})
           </Badge>
           
           {divergence && (
-            <Badge variant={divergence.type === 'bullish' ? "success" : "destructive"} className="ml-2">
+            <Badge variant={divergence.type === 'bullish' ? "secondary" : "destructive"} className="ml-2">
               {divergence.type === 'bullish' ? 'Bullish' : 'Bearish'} Divergence
             </Badge>
           )}
@@ -426,7 +426,7 @@ export default function EnhancedRsiChart({
             transition={{ duration: 0.3 }}
             className="h-full"
           >
-            <Line ref={chartRef} options={options} data={chartData} />
+            <Line ref={chartRef} options={options as any} data={chartData} />
           </motion.div>
         </AnimatePresence>
       </div>

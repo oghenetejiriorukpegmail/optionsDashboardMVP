@@ -380,13 +380,13 @@ export function ScannerDashboard() {
           description: (
             <div className="flex flex-col space-y-2">
               <p>{ticker} has been added to your watchlist</p>
-              <a
+              <Link
                 href="/watchlist"
                 className="flex items-center text-sm font-medium text-blue-500 hover:text-blue-600"
               >
-                <Link className="h-4 w-4 mr-1" />
+                <ExternalLink className="h-4 w-4 mr-1" />
                 View Watchlist
-              </a>
+              </Link>
             </div>
           ),
         });

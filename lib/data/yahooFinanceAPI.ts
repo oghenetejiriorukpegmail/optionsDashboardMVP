@@ -301,7 +301,7 @@ export async function fetchHistoricalData(symbol: string, period = '3mo', interv
           return processedData;
         }
       } catch (error) {
-        console.error(`Attempt ${attempts + 1} failed for historical data ${symbol}:`, error.message || error);
+        console.error(`Attempt ${attempts + 1} failed for historical data ${symbol}:`, (error as any).message || error);
         // Handle rate limiting with exponential backoff
         await handleRateLimiting(error, attempts);
       }
@@ -362,7 +362,7 @@ export async function fetchStockInfo(symbol: string) {
           return quoteData;
         }
       } catch (error) {
-        console.error(`Attempt ${attempts + 1} failed for stock info ${symbol}:`, error.message || error);
+        console.error(`Attempt ${attempts + 1} failed for stock info ${symbol}:`, (error as any).message || error);
         // Handle rate limiting with exponential backoff
         await handleRateLimiting(error, attempts);
       }

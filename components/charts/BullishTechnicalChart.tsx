@@ -211,7 +211,7 @@ export default function BullishTechnicalChart({
         label: 'Price',
         data: priceData,
         borderColor: 'rgba(99, 102, 241, 1)',
-        backgroundColor: function(context) {
+        backgroundColor: function(context: any) {
           const chart = context.chart;
           const {ctx} = chart;
           return createGradient(ctx);
@@ -290,9 +290,7 @@ export default function BullishTechnicalChart({
           usePointStyle: true,
           padding: 15,
           boxWidth: 10,
-          color: (context) => {
-            return context.active ? '#ffffff' : '#a1a1aa';
-          },
+          color: '#a1a1aa' as any,
         },
       },
       tooltip: {
@@ -365,13 +363,14 @@ export default function BullishTechnicalChart({
         },
         ticks: {
           color: '#a1a1aa',
-          callback: function(value) {
-            if (value >= 1000000) {
-              return (value / 1000000).toFixed(1) + 'M';
-            } else if (value >= 1000) {
-              return (value / 1000).toFixed(1) + 'K';
+          callback: function(value: any) {
+            const numValue = typeof value === 'number' ? value : parseFloat(value);
+            if (numValue >= 1000000) {
+              return (numValue / 1000000).toFixed(1) + 'M';
+            } else if (numValue >= 1000) {
+              return (numValue / 1000).toFixed(1) + 'K';
             }
-            return value;
+            return numValue;
           },
         },
         title: {

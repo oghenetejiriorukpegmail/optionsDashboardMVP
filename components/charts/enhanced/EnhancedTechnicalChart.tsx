@@ -419,9 +419,9 @@ export default function EnhancedTechnicalChart({
           usePointStyle: true,
           pointStyle: 'circle',
           padding: 15,
-          color: (context) => {
+          color: ((context: any) => {
             return context.active ? '#ffffff' : '#a1a1aa';
-          },
+          }) as any,
         },
       },
       title: {
@@ -630,7 +630,7 @@ export default function EnhancedTechnicalChart({
         pointHoverBorderWidth: 2,
         yAxisID: 'y',
       },
-      // Volume bars (using line chart with custom drawing)
+      // Volume bars (using line chart with fill)
       ...(showVolume ? [{
         label: "Volume",
         data: displayedData.map(point => point.volume),
@@ -646,7 +646,7 @@ export default function EnhancedTechnicalChart({
         pointRadius: 0,
         pointHoverRadius: 0,
         yAxisID: 'volume',
-        type: 'bar' as const,
+        fill: true,
       }] : []),
       // EMA lines
       ...(showEma && selectedEmas.includes('ema10') ? [{
@@ -708,7 +708,7 @@ export default function EnhancedTechnicalChart({
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
               {symbol}
               <Badge variant={
-                trendStrength.strength === 'bullish' ? "success" : 
+                trendStrength.strength === 'bullish' ? "secondary" : 
                 trendStrength.strength === 'bearish' ? "destructive" : 
                 "outline"
               } className="ml-2">

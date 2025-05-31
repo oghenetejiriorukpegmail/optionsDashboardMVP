@@ -184,7 +184,7 @@ export async function fetchScannerResults(options: ScannerOptions = {}) {
       // Server-side filters may not be fully implemented yet, so we also
       // filter the results on the client side for maximum compatibility
       if (data.results && Array.isArray(data.results)) {
-        data.results = data.results.filter(result => {
+        data.results = data.results.filter((result: any) => {
           // Skip results that don't match our filters
           if (!result) return false;
 

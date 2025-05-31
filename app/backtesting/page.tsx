@@ -208,13 +208,19 @@ export default function BacktestingPage() {
   
   // Helper function to update nested parameters
   const updateNestedParam = (parent: string, key: string, value: any) => {
-    setParams(prev => ({
-      ...prev,
-      [parent]: {
-        ...prev[parent as keyof typeof prev],
-        [key]: value,
-      },
-    }));
+    setParams(prev => {
+      const parentValue = prev[parent as keyof typeof prev];
+      if (typeof parentValue === 'object' && parentValue !== null) {
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [key]: value,
+          },
+        };
+      }
+      return prev;
+    });
   };
   
   // Run backtest with current parameters

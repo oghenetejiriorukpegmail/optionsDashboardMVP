@@ -125,12 +125,6 @@ class CacheManager {
     this.cache.delete(key);
   }
 
-  /**
-   * Clear all items from the cache
-   */
-  clear(): void {
-    this.cache.clear();
-  }
 
   /**
    * Refresh an item in the cache by extending its TTL

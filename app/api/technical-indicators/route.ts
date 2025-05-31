@@ -88,8 +88,9 @@ function calculateStochasticRSI(rsiValues: (number | null)[], period: number = 1
     // Get RSI values for the period
     const periodValues: number[] = [];
     for (let j = i - period + 1; j <= i; j++) {
-      if (rsiValues[j] !== null) {
-        periodValues.push(rsiValues[j]);
+      const rsiValue = rsiValues[j];
+      if (rsiValue !== null) {
+        periodValues.push(rsiValue);
       }
     }
     
@@ -102,7 +103,9 @@ function calculateStochasticRSI(rsiValues: (number | null)[], period: number = 1
     const maxRsi = Math.max(...periodValues);
     const currentRsi = rsiValues[i];
     
-    if (maxRsi === minRsi) {
+    if (currentRsi === null) {
+      stochRsi.push(null);
+    } else if (maxRsi === minRsi) {
       stochRsi.push(50); // Middle value when range is 0
     } else {
       stochRsi.push(((currentRsi - minRsi) / (maxRsi - minRsi)) * 100);

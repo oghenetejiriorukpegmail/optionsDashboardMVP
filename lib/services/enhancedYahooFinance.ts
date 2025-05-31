@@ -292,7 +292,13 @@ export function calculateTechnicalIndicators(historicalData: {
   const cacheKey = `technicals:${dataHash}`;
   
   // Check cache first
-  const cachedResult = cacheManager.get(cacheKey);
+  const cachedResult = cacheManager.get<{
+    ema10: number[];
+    ema20: number[];
+    ema50: number[];
+    rsi14: number[];
+    stochRsi: number[];
+  }>(cacheKey);
   if (cachedResult) {
     return cachedResult;
   }
@@ -381,7 +387,16 @@ export function calculateOptionsMetrics(
   const cacheKey = `options_metrics:${dataHash}`;
   
   // Check cache first
-  const cachedResult = cacheManager.get(cacheKey);
+  const cachedResult = cacheManager.get<{
+    pcr: number;
+    maxPain: number;
+    totalCallOi: number;
+    totalPutOi: number;
+    totalCallVolume: number;
+    totalPutVolume: number;
+    vwiv: number;
+    gammaExposure: number;
+  }>(cacheKey);
   if (cachedResult) {
     return cachedResult;
   }

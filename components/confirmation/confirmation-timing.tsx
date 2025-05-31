@@ -184,10 +184,11 @@ export function ConfirmationTiming({ symbol: propSymbol, ticker: propTicker, sto
   const activeEntryTrigger = entryTriggers.find(trigger => trigger.active);
 
   // Ensure keyLevels exist with default values if needed
+  const currentPrice = stockData?.price || 100;
   const keyLevels = stockData?.keyLevels || {
-    support: [stockData?.price * 0.95 || 100],
-    resistance: [stockData?.price * 1.05 || 110],
-    maxPain: stockData?.price || 105
+    support: [currentPrice * 0.95],
+    resistance: [currentPrice * 1.05],
+    maxPain: currentPrice
   };
 
   // Determine timeframe-specific exit targets

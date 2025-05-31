@@ -290,9 +290,7 @@ export default function EnhancedOptionsChain({
           usePointStyle: true,
           pointStyle: 'circle',
           padding: 15,
-          color: (context) => {
-            return context.active ? '#ffffff' : '#a1a1aa';
-          },
+          color: '#a1a1aa' as any,
         },
       },
       title: {
@@ -380,15 +378,16 @@ export default function EnhancedOptionsChain({
         ticks: {
           color: '#a1a1aa',
           callback: function(value) {
+            const numValue = Number(value);
             if (activeDisplayMode === 'gamma') {
-              return (Number(value) / 1000).toFixed(3);
+              return (numValue / 1000).toFixed(3);
             }
             
             // Abbreviate large numbers
-            if (value >= 1000000) {
-              return (Number(value) / 1000000).toFixed(1) + 'M';
-            } else if (value >= 1000) {
-              return (Number(value) / 1000).toFixed(1) + 'K';
+            if (numValue >= 1000000) {
+              return (numValue / 1000000).toFixed(1) + 'M';
+            } else if (numValue >= 1000) {
+              return (numValue / 1000).toFixed(1) + 'K';
             }
             return value;
           },

@@ -7,6 +7,7 @@ import { getQuote as getAlphaVantageQuote, getHistoricalData as getAlphaVantageH
 import { polygonRateLimiter, alphaVantageRateLimiter, twelveDataRateLimiter, globalRateLimiter } from '../utils/rateLimiter';
 import { getSymbolForAPI, isVolatilityIndex } from '../config/special-symbols';
 import { ibkrClient, initializeIBKR } from './ibkrClient';
+import { calculateTechnicalIndicators, calculateOptionsMetrics, calculateIvPercentile } from './yahooFinance';
 
 // Types
 interface MarketQuote {

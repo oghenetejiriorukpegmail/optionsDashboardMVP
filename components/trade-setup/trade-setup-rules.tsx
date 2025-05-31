@@ -118,7 +118,7 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
       }
     } catch (error) {
       console.error('Error fetching ticker data:', error);
-      toast('Failed to fetch ticker data');
+      toast.error('Failed to fetch ticker data');
     } finally {
       setLoading(false);
     }
@@ -246,13 +246,9 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
         entryTarget: stockData.price,
         stopLoss: stockData.recommendation.stop || 'N/A'
       });
-      toast('Added to watchlist', {
-        description: `${symbol} has been added to your watchlist`,
-      });
+      toast.success('Added to watchlist', `${symbol} has been added to your watchlist`);
     } catch (error) {
-      toast('Error', {
-        description: 'Failed to add to watchlist',
-      });
+      toast.error('Error', 'Failed to add to watchlist');
     } finally {
       setAddingToWatchlist(false);
     }

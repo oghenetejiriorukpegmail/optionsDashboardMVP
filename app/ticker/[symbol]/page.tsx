@@ -9,13 +9,13 @@ import { ArrowLeft, TrendingUp, Target, Shield, Clock, BarChart3 } from 'lucide-
 import Link from 'next/link';
 
 interface TickerPageProps {
-  params: {
+  params: Promise<{
     symbol: string;
-  };
+  }>;
 }
 
-export default function TickerPage({ params }: TickerPageProps) {
-  const { symbol } = params;
+export default async function TickerPage({ params }: TickerPageProps) {
+  const { symbol } = await params;
 
   return (
     <div className="container mx-auto px-4 py-8">
