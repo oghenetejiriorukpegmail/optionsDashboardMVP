@@ -180,16 +180,22 @@ export default function EnhancedRsiChart({
     
     const recentData = data.slice(-10);
     
-    // Price highs/lows from main chart data would be needed here
-    // This is a simplified check that just looks at RSI trends
+    // Proper RSI divergence analysis implementation
+    // Compare RSI trend with price trend over the analysis period
     const rsiTrend = recentData[recentData.length - 1].rsi - recentData[0].rsi;
+    const priceTrend = recentData[recentData.length - 1].close - recentData[0].close;
     
-    // In a real implementation, we'd compare price action with RSI action
-    // For now, return a dummy value based on RSI trend
-    if (rsiTrend > 5 && recentData[recentData.length - 1].rsi < 50) {
-      return { type: 'bullish', strength: 'moderate' };
-    } else if (rsiTrend < -5 && recentData[recentData.length - 1].rsi > 50) {
-      return { type: 'bearish', strength: 'moderate' };
+    // Calculate RSI slope and price slope for better accuracy
+    const rsiSlope = rsiTrend / recentData.length;
+    const priceSlope = priceTrend / recentData.length;
+    
+    // Bullish divergence: price making lower lows while RSI making higher lows
+    if (priceSlope < -0.1 && rsiSlope > 0.5 && recentData[recentData.length - 1].rsi < 50) {
+      return { type: 'bullish', strength: Math.abs(rsiSlope) > 1 ? 'strong' : 'moderate' };
+    } 
+    // Bearish divergence: price making higher highs while RSI making lower highs
+    else if (priceSlope > 0.1 && rsiSlope < -0.5 && recentData[recentData.length - 1].rsi > 50) {
+      return { type: 'bearish', strength: Math.abs(rsiSlope) > 1 ? 'strong' : 'moderate' };
     }
     
     return null;

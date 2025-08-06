@@ -19,6 +19,9 @@ import { fetchScannerResults, fetchWatchlist, addToWatchlist } from '@/lib/api';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('ScannerDashboard');
 
 // Types
 interface TradeSetup {
@@ -100,7 +103,7 @@ export function ScannerDashboard() {
         // Data collection initialized successfully
       })
       .catch(error => {
-        console.error('Failed to initialize data collection:', error);
+        logger.error('Failed to initialize data collection', {}, error instanceof Error ? error : new Error(String(error)));
         toast({
           title: 'Error',
           description: 'Failed to initialize data collection',
@@ -125,7 +128,7 @@ export function ScannerDashboard() {
         setWatchlistItems(symbols);
       }
     } catch (error) {
-      console.error('Error fetching watchlist items:', error);
+      logger.error('Error fetching watchlist items', {}, error instanceof Error ? error : new Error(String(error)));
     }
   };
 
@@ -140,7 +143,7 @@ export function ScannerDashboard() {
         setSelectedTicker('all');
       }
     } catch (error) {
-      console.error('Failed to fetch tickers:', error);
+      logger.error('Failed to fetch tickers', {}, error instanceof Error ? error : new Error(String(error)));
       toast({
         title: 'Error',
         description: 'Failed to fetch tickers',
@@ -258,7 +261,7 @@ export function ScannerDashboard() {
         description: 'Scanner analysis completed successfully',
       });
     } catch (error) {
-      console.error('Scanner error:', error);
+      logger.error('Scanner error', {}, error instanceof Error ? error : new Error(String(error)));
       toast({
         title: 'Error',
         description: 'Failed to run scanner',
@@ -399,7 +402,7 @@ export function ScannerDashboard() {
         throw new Error(result.error || 'Failed to add to watchlist');
       }
     } catch (error) {
-      console.error('Error adding to watchlist:', error);
+      logger.error('Error adding to watchlist', {}, error instanceof Error ? error : new Error(String(error)));
       toast({
         title: 'Error',
         description: 'Failed to add to watchlist',
