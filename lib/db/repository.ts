@@ -139,22 +139,23 @@ export async function getOptionsData(ticker: string, expiration_date?: string): 
     );
   }
   
-  // Get most recent expiration date's data if no expiration specified
-  const latestExpiration = await db.get(
+  // Get the nearest future expiration date's data if no expiration specified
+  // This gets the expiration closest to but after today (or the first available if all are past)
+  const nearestExpiration = await db.get(
     `SELECT expiration_date FROM options_data 
      WHERE ticker = ? 
-     ORDER BY date(expiration_date) ASC 
+     ORDER BY date(expiration_date) >= date('now') DESC, date(expiration_date) ASC
      LIMIT 1`,
     [ticker]
   );
   
-  if (!latestExpiration) return [];
+  if (!nearestExpiration) return [];
   
   return db.all(
     `SELECT * FROM options_data 
      WHERE ticker = ? AND expiration_date = ? 
      ORDER BY strike_price ASC`,
-    [ticker, latestExpiration.expiration_date]
+    [ticker, nearestExpiration.expiration_date]
   );
 }
 

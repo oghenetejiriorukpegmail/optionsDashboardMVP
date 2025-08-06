@@ -97,7 +97,7 @@ export function ScannerDashboard() {
     fetch('/api/init')
       .then(res => res.json())
       .then(data => {
-        console.log('Data collection initialized:', data);
+        // Data collection initialized successfully
       })
       .catch(error => {
         console.error('Failed to initialize data collection:', error);
@@ -152,6 +152,9 @@ export function ScannerDashboard() {
   // Run the scanner with all parameters
   const runScanner = async () => {
     setIsLoading(true);
+    
+    // Small delay to ensure UI updates
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     try {
       // Build scan options with all parameters
@@ -199,7 +202,9 @@ export function ScannerDashboard() {
           };
           setResults({ [selectedTicker]: transformedSetup });
         } else {
-          setResults({});
+          // Still show the ticker in results even if no setup found
+          // This allows users to click through to see the collected data
+          setResults({ [selectedTicker]: null });
         }
       } else {
         // All tickers scan - transform to expected format
@@ -487,14 +492,17 @@ export function ScannerDashboard() {
         }
         enhancedSetup.matchedFilters.gex = gexMatches;
 
-        // Greek filters - only if they're enabled
-        const gammaMatches = !filters.includeGamma || (setup.gamma !== undefined);
+        // Greek filters - only if they're enabled and have valid data
+        // When Greek analytics are enabled, we allow results through if:
+        // 1. The filter is disabled, OR
+        // 2. The Greek value exists and is not null/undefined
+        const gammaMatches = !filters.includeGamma || (setup.gamma !== undefined && setup.gamma !== null);
         enhancedSetup.matchedFilters.gamma = gammaMatches;
 
-        const vannaMatches = !filters.includeVanna || (setup.vanna !== undefined);
+        const vannaMatches = !filters.includeVanna || (setup.vanna !== undefined && setup.vanna !== null);
         enhancedSetup.matchedFilters.vanna = vannaMatches;
 
-        const charmMatches = !filters.includeCharm || (setup.charm !== undefined);
+        const charmMatches = !filters.includeCharm || (setup.charm !== undefined && setup.charm !== null);
         enhancedSetup.matchedFilters.charm = charmMatches;
 
         // Include setup only if it matches all filters
@@ -577,14 +585,14 @@ export function ScannerDashboard() {
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">Put-Call Ratio</div>
                 <div className="font-medium">
-                  {marketSummary.pcrAggregate.toFixed(2)}
+                  {typeof marketSummary.pcrAggregate === 'number' && !isNaN(marketSummary.pcrAggregate) ? marketSummary.pcrAggregate.toFixed(2) : 'N/A'}
                 </div>
               </div>
 
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">GEX ($MM)</div>
                 <div className={`font-medium ${marketSummary.gexAggregate > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {(marketSummary.gexAggregate / 1000000).toFixed(1)}
+                  {typeof marketSummary.gexAggregate === 'number' && !isNaN(marketSummary.gexAggregate) ? (marketSummary.gexAggregate / 1000000).toFixed(1) : 'N/A'}
                 </div>
               </div>
             </div>
@@ -869,19 +877,19 @@ export function ScannerDashboard() {
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Entry:</span>
-                                <span className="font-medium">${setup.entry_price.toFixed(2)}</span>
+                                <span className="font-medium">${typeof setup.entry_price === 'number' && !isNaN(setup.entry_price) ? setup.entry_price.toFixed(2) : 'N/A'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Target:</span>
-                                <span className="font-medium">${setup.target_price.toFixed(2)}</span>
+                                <span className="font-medium">${typeof setup.target_price === 'number' && !isNaN(setup.target_price) ? setup.target_price.toFixed(2) : 'N/A'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Stop Loss:</span>
-                                <span className="font-medium">${setup.stop_loss.toFixed(2)}</span>
+                                <span className="font-medium">${typeof setup.stop_loss === 'number' && !isNaN(setup.stop_loss) ? setup.stop_loss.toFixed(2) : 'N/A'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Risk/Reward:</span>
-                                <span className="font-medium">{setup.risk_reward_ratio.toFixed(2)}</span>
+                                <span className="font-medium">{typeof setup.risk_reward_ratio === 'number' && !isNaN(setup.risk_reward_ratio) ? setup.risk_reward_ratio.toFixed(2) : 'N/A'}</span>
                               </div>
                               {setup.emaTrend && (
                                 <div className="flex justify-between">
@@ -892,31 +900,31 @@ export function ScannerDashboard() {
                               {setup.pcr !== undefined && (
                                 <div className="flex justify-between">
                                   <span className="text-muted-foreground">PCR:</span>
-                                  <span className="font-medium">{setup.pcr.toFixed(2)}</span>
+                                  <span className="font-medium">{typeof setup.pcr === 'number' && !isNaN(setup.pcr) ? setup.pcr.toFixed(2) : 'N/A'}</span>
                                 </div>
                               )}
                               {setup.rsi !== undefined && (
                                 <div className="flex justify-between">
                                   <span className="text-muted-foreground">RSI:</span>
-                                  <span className="font-medium">{setup.rsi.toFixed(1)}</span>
+                                  <span className="font-medium">{typeof setup.rsi === 'number' && !isNaN(setup.rsi) ? setup.rsi.toFixed(1) : 'N/A'}</span>
                                 </div>
                               )}
                               {filters.includeGamma && setup.gamma !== undefined && (
                                 <div className="flex justify-between">
                                   <span className="text-muted-foreground">Gamma:</span>
-                                  <span className="font-medium">{setup.gamma.toFixed(4)}</span>
+                                  <span className="font-medium">{typeof setup.gamma === 'number' && !isNaN(setup.gamma) ? setup.gamma.toFixed(4) : 'N/A'}</span>
                                 </div>
                               )}
                               {filters.includeVanna && setup.vanna !== undefined && (
                                 <div className="flex justify-between">
                                   <span className="text-muted-foreground">Vanna:</span>
-                                  <span className="font-medium">{setup.vanna.toFixed(4)}</span>
+                                  <span className="font-medium">{typeof setup.vanna === 'number' && !isNaN(setup.vanna) ? setup.vanna.toFixed(4) : 'N/A'}</span>
                                 </div>
                               )}
                               {filters.includeCharm && setup.charm !== undefined && (
                                 <div className="flex justify-between">
                                   <span className="text-muted-foreground">Charm:</span>
-                                  <span className="font-medium">{setup.charm.toFixed(4)}</span>
+                                  <span className="font-medium">{typeof setup.charm === 'number' && !isNaN(setup.charm) ? setup.charm.toFixed(4) : 'N/A'}</span>
                                 </div>
                               )}
                               <div className="flex justify-between items-center">
@@ -944,10 +952,23 @@ export function ScannerDashboard() {
                                   </span>
                                 </div>
                               </div>
+                              {/* View Full Analysis Link */}
+                              <div className="mt-4 pt-3 border-t">
+                                <div className="flex items-center justify-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+                                  <span>View Full Analysis</span>
+                                  <ArrowUpRight className="h-4 w-4" />
+                                </div>
+                              </div>
                             </div>
                           ) : (
                             <div className="py-4 text-center text-muted-foreground">
                               No setup detected
+                              <div className="mt-4 pt-3 border-t">
+                                <div className="flex items-center justify-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+                                  <span>View Collected Data</span>
+                                  <ArrowUpRight className="h-4 w-4" />
+                                </div>
+                              </div>
                             </div>
                           )}
                         </CardContent>
@@ -1038,36 +1059,36 @@ export function ScannerDashboard() {
                               )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {setup ? `$${setup.entry_price.toFixed(2)}` : '-'}
+                              {setup && typeof setup.entry_price === 'number' && !isNaN(setup.entry_price) ? `$${setup.entry_price.toFixed(2)}` : '-'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {setup ? `$${setup.target_price.toFixed(2)}` : '-'}
+                              {setup && typeof setup.target_price === 'number' && !isNaN(setup.target_price) ? `$${setup.target_price.toFixed(2)}` : '-'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {setup ? `$${setup.stop_loss.toFixed(2)}` : '-'}
+                              {setup && typeof setup.stop_loss === 'number' && !isNaN(setup.stop_loss) ? `$${setup.stop_loss.toFixed(2)}` : '-'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {setup ? setup.risk_reward_ratio.toFixed(2) : '-'}
+                              {setup && typeof setup.risk_reward_ratio === 'number' && !isNaN(setup.risk_reward_ratio) ? setup.risk_reward_ratio.toFixed(2) : '-'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {setup?.pcr !== undefined ? setup.pcr.toFixed(2) : '-'}
+                              {setup?.pcr !== undefined && typeof setup.pcr === 'number' && !isNaN(setup.pcr) ? setup.pcr.toFixed(2) : '-'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {setup?.rsi !== undefined ? setup.rsi.toFixed(1) : '-'}
+                              {setup?.rsi !== undefined && typeof setup.rsi === 'number' && !isNaN(setup.rsi) ? setup.rsi.toFixed(1) : '-'}
                             </td>
                             {filters.includeGamma && (
                               <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                {setup?.gamma !== undefined ? setup.gamma.toFixed(4) : '-'}
+                                {setup?.gamma !== undefined && typeof setup.gamma === 'number' && !isNaN(setup.gamma) ? setup.gamma.toFixed(4) : '-'}
                               </td>
                             )}
                             {filters.includeVanna && (
                               <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                {setup?.vanna !== undefined ? setup.vanna.toFixed(4) : '-'}
+                                {setup?.vanna !== undefined && typeof setup.vanna === 'number' && !isNaN(setup.vanna) ? setup.vanna.toFixed(4) : '-'}
                               </td>
                             )}
                             {filters.includeCharm && (
                               <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                {setup?.charm !== undefined ? setup.charm.toFixed(4) : '-'}
+                                {setup?.charm !== undefined && typeof setup.charm === 'number' && !isNaN(setup.charm) ? setup.charm.toFixed(4) : '-'}
                               </td>
                             )}
                             <td className="px-6 py-4 whitespace-nowrap text-sm">

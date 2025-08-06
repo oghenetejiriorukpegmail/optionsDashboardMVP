@@ -8,6 +8,10 @@ import {
   getTradeSetups
 } from '@/lib/db/repository';
 import { analyzeTradeSetups, batchAnalyzeSetups } from '@/lib/services/strategyAnalyzer';
+import { manuallyCollectData } from '@/lib/services/dataCollector';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Scanner API');
 
 /**
  * GET /api/scanner - Scanner endpoint that reads from database and runs analysis
@@ -29,8 +33,29 @@ export async function GET(request: Request) {
     if (symbol) {
       let setup;
       
+      // Check if we have recent market data for this symbol
+      const marketContext = await getLatestMarketContext(symbol);
+      const hasRecentData = marketContext && marketContext.price && 
+        (Date.now() - marketContext.price.timestamp * 1000) < 24 * 60 * 60 * 1000; // Less than 24 hours old
+      
+      // If no recent data or refresh requested, collect fresh data
+      if (!hasRecentData || refresh) {
+        logger.info(`Collecting fresh data for ${symbol} before analysis`);
+        try {
+          await manuallyCollectData(symbol);
+          logger.info(`Data collection completed for ${symbol}`);
+        } catch (error) {
+          logger.error(`Failed to collect data for ${symbol}`, {}, error instanceof Error ? error : new Error(String(error)));
+          return NextResponse.json({ 
+            error: `Failed to collect data for ${symbol}`,
+            message: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString() 
+          }, { status: 500 });
+        }
+      }
+      
       if (refresh) {
-        // Force a new analysis
+        // Force a new analysis after collecting fresh data
         setup = await analyzeTradeSetups(symbol);
       } else {
         // Get existing trade setup from database
@@ -51,20 +76,58 @@ export async function GET(request: Request) {
       }
       
       // Transform the setup data to match the frontend expectations
-      const marketContext = await getLatestMarketContext(symbol);
+      const latestContext = await getLatestMarketContext(symbol);
       
+      // Clean up invalid values before returning
+      let stopLoss = setup.stop_loss;
+      let targetPrice = setup.target_price;
+      let riskRewardRatio = setup.risk_reward_ratio;
+      
+      // Fix invalid stop loss values
+      if (!isFinite(stopLoss) || stopLoss === null || stopLoss <= 0) {
+        const currentPrice = latestContext?.price?.close || setup.entry_price;
+        stopLoss = currentPrice * 0.97; // 3% below current price as fallback
+      }
+      
+      // Fix invalid target price values and ensure meaningful difference
+      const minDifferencePercent = 0.02; // Minimum 2% difference required
+      const targetPriceDifference = Math.abs(targetPrice - setup.entry_price) / setup.entry_price;
+      
+      if (!targetPrice || !isFinite(targetPrice) || targetPrice === null || targetPrice === undefined || targetPriceDifference < minDifferencePercent) {
+        // For bearish setups, target should be below entry price
+        if (setup.setup_type === 'bearish') {
+          targetPrice = setup.entry_price * 0.95; // 5% below entry price for bearish
+        } else {
+          targetPrice = setup.entry_price * 1.05; // 5% above entry price for bullish/neutral
+        }
+      }
+      
+      // Always recalculate risk-reward ratio with corrected values
+      const reward = Math.abs(targetPrice - setup.entry_price);
+      const risk = Math.abs(setup.entry_price - stopLoss);
+      riskRewardRatio = risk > 0 && isFinite(reward) && isFinite(risk) ? reward / risk : 1.0;
+
+      // Get options data to calculate Greek values
+      const optionsData = await getOptionsData(setup.ticker);
+      const greeks = calculateGreekValues(optionsData, latestContext?.price?.close || setup.entry_price);
+
       const result = {
         symbol: setup.ticker,
         setupType: setup.setup_type,
-        emaTrend: getEmaTrend(marketContext?.technicals),
-        pcr: marketContext?.sentiment?.pcr || 0,
-        rsi: marketContext?.technicals?.rsi_14 || 0,
+        emaTrend: getEmaTrend(latestContext?.technicals),
+        pcr: latestContext?.sentiment?.pcr || 0,
+        rsi: latestContext?.technicals?.rsi_14 || 0,
         setupStrength: getSetupStrength(setup.strength),
-        price: marketContext?.price?.close || 0,
+        price: latestContext?.price?.close || 0,
         entryPrice: setup.entry_price,
-        stopLoss: setup.stop_loss,
-        targetPrice: setup.target_price,
-        riskRewardRatio: setup.risk_reward_ratio,
+        stopLoss: Number(stopLoss.toFixed(2)),
+        targetPrice: Number(targetPrice.toFixed(2)),
+        riskRewardRatio: Number(riskRewardRatio.toFixed(2)),
+        iv: greeks.iv || latestContext?.sentiment?.iv_percentile || null,
+        gamma: greeks.gamma,
+        vanna: greeks.vanna,
+        charm: greeks.charm,
+        stoch_rsi: latestContext?.technicals?.stoch_rsi || null,
       };
       
       return NextResponse.json({ 
@@ -95,6 +158,39 @@ export async function GET(request: Request) {
       
       const marketContext = await getLatestMarketContext(ticker);
       
+      // Clean up invalid values before adding to results
+      let stopLoss = setup.stop_loss;
+      let targetPrice = setup.target_price;
+      let riskRewardRatio = setup.risk_reward_ratio;
+      
+      // Fix invalid stop loss values
+      if (!isFinite(stopLoss) || stopLoss === null || stopLoss <= 0) {
+        const currentPrice = marketContext?.price?.close || setup.entry_price;
+        stopLoss = currentPrice * 0.97; // 3% below current price as fallback
+      }
+      
+      // Fix invalid target price values and ensure meaningful difference
+      const minDifferencePercent = 0.02; // Minimum 2% difference required
+      const targetPriceDifference = Math.abs(targetPrice - setup.entry_price) / setup.entry_price;
+      
+      if (!targetPrice || !isFinite(targetPrice) || targetPrice === null || targetPrice === undefined || targetPriceDifference < minDifferencePercent) {
+        // For bearish setups, target should be below entry price
+        if (setup.setup_type === 'bearish') {
+          targetPrice = setup.entry_price * 0.95; // 5% below entry price for bearish
+        } else {
+          targetPrice = setup.entry_price * 1.05; // 5% above entry price for bullish/neutral
+        }
+      }
+      
+      // Always recalculate risk-reward ratio with corrected values
+      const reward = Math.abs(targetPrice - setup.entry_price);
+      const risk = Math.abs(setup.entry_price - stopLoss);
+      riskRewardRatio = risk > 0 && isFinite(reward) && isFinite(risk) ? reward / risk : 1.0;
+
+      // Get options data to calculate Greek values
+      const optionsData = await getOptionsData(ticker);
+      const greeks = calculateGreekValues(optionsData, marketContext?.price?.close || setup.entry_price);
+
       results.push({
         symbol: ticker,
         setupType: setup.setup_type,
@@ -102,11 +198,16 @@ export async function GET(request: Request) {
         pcr: marketContext?.sentiment?.pcr || 0,
         rsi: marketContext?.technicals?.rsi_14 || 0,
         setupStrength: getSetupStrength(setup.strength),
-        price: marketContext?.price?.close || 0,
+        price: marketContext?.price || 0,
         entryPrice: setup.entry_price,
-        stopLoss: setup.stop_loss,
-        targetPrice: setup.target_price,
-        riskRewardRatio: setup.risk_reward_ratio,
+        stopLoss: Number(stopLoss.toFixed(2)),
+        targetPrice: Number(targetPrice.toFixed(2)),
+        riskRewardRatio: Number(riskRewardRatio.toFixed(2)),
+        iv: greeks.iv || marketContext?.sentiment?.iv_percentile || null,
+        gamma: greeks.gamma,
+        vanna: greeks.vanna,
+        charm: greeks.charm,
+        stoch_rsi: marketContext?.technicals?.stoch_rsi || null,
       });
     }
     
@@ -129,7 +230,7 @@ export async function GET(request: Request) {
       dataSource: 'database'
     });
   } catch (error) {
-    console.error('Error in scanner API:', error);
+    logger.error('Error in scanner API:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { 
         error: 'Scanner operation failed', 
@@ -164,6 +265,83 @@ function getSetupStrength(strength: number) {
   if (strength >= 80) return 'strong';
   if (strength >= 65) return 'moderate';
   return 'weak';
+}
+
+// Helper function to calculate Greek values and IV from options data
+function calculateGreekValues(optionsData: any[], currentPrice: number) {
+  if (!optionsData || optionsData.length === 0) {
+    return {
+      gamma: null,
+      vanna: null,
+      charm: null,
+      iv: null
+    };
+  }
+
+  // Find options closest to current price (at-the-money)
+  const atmOptions = optionsData.filter(option => 
+    Math.abs(option.strike_price - currentPrice) <= currentPrice * 0.05 // Within 5% of current price
+  );
+
+  if (atmOptions.length === 0) {
+    return {
+      gamma: null,
+      vanna: null, 
+      charm: null,
+      iv: null
+    };
+  }
+
+  // Calculate aggregate gamma (sum of call and put gamma for ATM strikes)
+  const totalGamma = atmOptions.reduce((sum, option) => {
+    const callGamma = option.call_gamma || 0;
+    const putGamma = option.put_gamma || 0;
+    return sum + callGamma + Math.abs(putGamma); // Put gamma is negative, so we take absolute value
+  }, 0);
+
+  // Calculate average implied volatility from ATM options
+  let validIVCount = 0;
+  let totalIV = 0;
+  
+  atmOptions.forEach(option => {
+    if (option.call_iv > 0 && option.call_iv < 10) { // IV typically between 0-10 (representing 0-1000%)
+      totalIV += option.call_iv * 100; // Convert to percentage
+      validIVCount++;
+    }
+    if (option.put_iv > 0 && option.put_iv < 10) {
+      totalIV += option.put_iv * 100; // Convert to percentage
+      validIVCount++;
+    }
+  });
+  
+  const avgIV = validIVCount > 0 ? totalIV / validIVCount : null;
+  
+  // Calculate IV percentile (simplified - in practice would use historical IV data)
+  // This is a rough approximation based on typical IV ranges
+  let ivPercentile = null;
+  if (avgIV !== null) {
+    if (avgIV < 20) ivPercentile = 10;
+    else if (avgIV < 30) ivPercentile = 25;
+    else if (avgIV < 40) ivPercentile = 50;
+    else if (avgIV < 60) ivPercentile = 75;
+    else if (avgIV < 80) ivPercentile = 90;
+    else ivPercentile = 95;
+  }
+
+  // Simplified vanna calculation (gamma sensitivity to IV changes)
+  const vanna = totalGamma * ((avgIV || 50) / 100) * 0.5; // Simplified approximation
+
+  // Simplified charm calculation (delta decay with time)
+  // Charm is typically negative for long positions, positive for short
+  const avgDelta = atmOptions.reduce((sum, option) => sum + Math.abs(option.call_delta || 0), 0) / atmOptions.length;
+  const charm = -avgDelta * 0.1; // Simplified time decay approximation
+
+  return {
+    gamma: totalGamma > 0 ? Number(totalGamma.toFixed(4)) : null,
+    vanna: !isNaN(vanna) && isFinite(vanna) ? Number(vanna.toFixed(4)) : null,
+    charm: !isNaN(charm) && isFinite(charm) ? Number(charm.toFixed(4)) : null,
+    iv: ivPercentile
+  };
 }
 
 
