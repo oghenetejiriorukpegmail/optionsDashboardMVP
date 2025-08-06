@@ -151,7 +151,7 @@ const ScannerFilters: React.FC<ScannerFiltersProps> = ({
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
-          <Label>Setup Type</Label>
+          <Label>Advanced Setup Filter</Label>
           <Select 
             value={filters.setupType}
             onValueChange={handleSetupTypeChange}

@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import * as repository from '@/lib/db/repository';
+import { getHistoricalData } from '@/lib/services/marketDataService';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('TechnicalIndicatorsAPI');
 
 // Cache for technical indicator data
 const indicatorsCache: Record<string, { data: any; timestamp: number }> = {};
@@ -131,29 +135,116 @@ export async function GET(request: Request) {
       return NextResponse.json(indicatorsCache[symbol].data);
     }
     
-    // Fetch stock data from database
-    const stockData = await repository.getLatestStockData(symbol);
+    // Fetch stock data from database first
+    let stockData = await repository.getLatestStockData(symbol);
+    
+    // If no data in database, try to fetch from external API
     if (!stockData) {
-      // Try to generate mock data for the ticker
-      const historicalData = generateMockHistoricalData(symbol);
-      const dataWithIndicators = calculateIndicators(historicalData);
-      
-      const latestData = dataWithIndicators[dataWithIndicators.length - 1];
-      const price = latestData.close;
-      
-      const response = buildResponse(symbol, price, dataWithIndicators);
-      
-      // Cache the data
-      indicatorsCache[symbol] = {
-        data: response,
-        timestamp: now
-      };
-      
-      return NextResponse.json(response);
+      try {
+        logger.info(`No database data found for ${symbol}, fetching from external API`, { symbol });
+        const historicalData = await getHistoricalData(symbol, '3mo', '1d');
+        
+        if (!historicalData || !historicalData.close || historicalData.close.length === 0) {
+          logger.error(`No historical data available for ${symbol}`, { symbol });
+          return NextResponse.json({
+            error: 'No historical data available for this symbol',
+            symbol,
+            timestamp: new Date().toISOString()
+          }, { status: 404 });
+        }
+        
+        // Convert external API data to our format
+        const convertedData = [];
+        for (let i = 0; i < historicalData.timestamps.length; i++) {
+          if (historicalData.close[i] !== null && historicalData.close[i] !== undefined) {
+            convertedData.push({
+              date: historicalData.dates[i],
+              timestamp: historicalData.timestamps[i],
+              open: historicalData.open[i] || historicalData.close[i],
+              high: historicalData.high[i] || historicalData.close[i],
+              low: historicalData.low[i] || historicalData.close[i],
+              close: historicalData.close[i],
+              volume: historicalData.volume[i] || 0
+            });
+          }
+        }
+        
+        if (convertedData.length === 0) {
+          logger.error(`No valid price data available for ${symbol}`, { symbol });
+          return NextResponse.json({
+            error: 'No valid price data available for this symbol',
+            symbol,
+            timestamp: new Date().toISOString()
+          }, { status: 404 });
+        }
+        
+        const dataWithIndicators = calculateIndicators(convertedData);
+        const latestData = dataWithIndicators[dataWithIndicators.length - 1];
+        const price = latestData.close;
+        
+        const response = buildResponse(symbol, price, dataWithIndicators);
+        
+        // Cache the data
+        indicatorsCache[symbol] = {
+          data: response,
+          timestamp: now
+        };
+        
+        return NextResponse.json(response);
+        
+      } catch (error) {
+        logger.error(`Failed to fetch external data for ${symbol}`, { symbol }, error as Error);
+        return NextResponse.json({
+          error: 'Failed to fetch data for this symbol',
+          symbol,
+          timestamp: new Date().toISOString(),
+          details: error instanceof Error ? error.message : String(error)
+        }, { status: 500 });
+      }
     }
     
-    // Generate historical data based on current price
-    const historicalData = generateHistoricalDataFromStock(stockData);
+    // Fetch historical data from external API
+    let historicalData;
+    try {
+      logger.info(`Fetching historical data for ${symbol} from external API`, { symbol });
+      const externalData = await getHistoricalData(symbol, '3mo', '1d');
+      
+      if (!externalData || !externalData.close || externalData.close.length < 30) {
+        logger.error(`Insufficient external historical data for ${symbol}`, { symbol });
+        return NextResponse.json({
+          error: 'Insufficient historical data available for technical analysis',
+          symbol,
+          timestamp: new Date().toISOString()
+        }, { status: 404 });
+      }
+      
+      // Convert external API data to our format
+      const convertedData = [];
+      for (let i = 0; i < externalData.timestamps.length; i++) {
+        if (externalData.close[i] !== null && externalData.close[i] !== undefined) {
+          convertedData.push({
+            date: externalData.dates[i],
+            timestamp: externalData.timestamps[i],
+            open: externalData.open[i] || externalData.close[i],
+            high: externalData.high[i] || externalData.close[i],
+            low: externalData.low[i] || externalData.close[i],
+            close: externalData.close[i],
+            volume: externalData.volume[i] || 0
+          });
+        }
+      }
+      historicalData = convertedData;
+      
+    } catch (error) {
+      logger.error(`Failed to fetch historical data for ${symbol}`, { symbol }, error as Error);
+      return NextResponse.json({
+        error: 'Failed to fetch historical data for technical analysis',
+        symbol,
+        timestamp: new Date().toISOString(),
+        details: error instanceof Error ? error.message : String(error)
+      }, { status: 500 });
+    }
+    
     const dataWithIndicators = calculateIndicators(historicalData);
     
     const response = buildResponse(
@@ -171,7 +262,7 @@ export async function GET(request: Request) {
     
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error fetching technical indicators:', error);
+    logger.error('Error fetching technical indicators', {}, error as Error);
     return NextResponse.json({ 
       error: true, 
       message: 'Failed to fetch technical indicators',
@@ -210,74 +301,6 @@ function calculateIndicators(historicalData: any[]) {
   }));
 }
 
-// Generate mock historical data
-function generateMockHistoricalData(symbol: string, days: number = 90): any[] {
-  const data = [];
-  const basePrice = 100 + Math.random() * 400; // Random base price between 100-500
-  let currentPrice = basePrice;
-  
-  for (let i = days; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    
-    // Random walk with trend
-    const change = (Math.random() - 0.48) * 0.02 * currentPrice; // Slight upward bias
-    currentPrice = Math.max(currentPrice + change, basePrice * 0.5); // Don't go below 50% of base
-    
-    const high = currentPrice * (1 + Math.random() * 0.02);
-    const low = currentPrice * (1 - Math.random() * 0.02);
-    const open = currentPrice + (Math.random() - 0.5) * 0.01 * currentPrice;
-    
-    data.push({
-      date: date.toISOString().split('T')[0],
-      timestamp: date.getTime(),
-      open: open,
-      high: high,
-      low: low,
-      close: currentPrice,
-      volume: Math.floor(10000000 + Math.random() * 50000000)
-    });
-  }
-  
-  return data;
-}
-
-// Generate historical data from stock data
-function generateHistoricalDataFromStock(stockData: any, days: number = 90): any[] {
-  const data = [];
-  const basePrice = stockData.close || stockData.price || 100;
-  let currentPrice = basePrice;
-  
-  // Work backwards from current price
-  for (let i = days; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    
-    // Generate price that trends toward current price
-    const daysLeft = i;
-    const volatility = 0.02 * (1 + daysLeft / days); // Higher volatility further back
-    const trendFactor = i === 0 ? 0 : (Math.random() - 0.5) * volatility;
-    
-    const dayPrice = i === 0 ? basePrice : currentPrice * (1 + trendFactor);
-    const high = dayPrice * (1 + Math.random() * 0.01);
-    const low = dayPrice * (1 - Math.random() * 0.01);
-    const open = dayPrice + (Math.random() - 0.5) * 0.005 * dayPrice;
-    
-    data.push({
-      date: date.toISOString().split('T')[0],
-      timestamp: date.getTime(),
-      open: open,
-      high: high,
-      low: low,
-      close: dayPrice,
-      volume: Math.floor((stockData.volume || 10000000) * (0.8 + Math.random() * 0.4))
-    });
-    
-    currentPrice = dayPrice;
-  }
-  
-  return data;
-}
 
 // Build the response
 function buildResponse(symbol: string, price: number, dataWithIndicators: any[], stockData?: any) {
@@ -288,12 +311,12 @@ function buildResponse(symbol: string, price: number, dataWithIndicators: any[],
                    latestData.ema10 < latestData.ema20 && latestData.ema20 < latestData.ema50 ? '10 < 20 < 50' :
                    'Mixed';
   
-  // Use stock data PCR if available, otherwise mock
-  const pcr = stockData?.pcr || (0.8 + Math.random() * 0.8);
+  // Use stock data PCR if available, otherwise null
+  const pcr = stockData?.pcr || null;
   
-  // Determine setup type
-  const setupType = emaTrend === '10 > 20 > 50' && pcr < 1.0 ? 'bullish' :
-                    emaTrend === '10 < 20 < 50' && pcr > 1.2 ? 'bearish' :
+  // Determine setup type based on EMAs only (no PCR dependency)
+  const setupType = emaTrend === '10 > 20 > 50' ? 'bullish' :
+                    emaTrend === '10 < 20 < 50' ? 'bearish' :
                     'neutral';
   
   // Calculate key levels
@@ -329,10 +352,10 @@ function buildResponse(symbol: string, price: number, dataWithIndicators: any[],
     stochasticRsi: latestData.stochasticRsi,
     volume: {
       current: stockData?.volume || latestData.volume,
-      percentChange: 0 // Mock value
+      percentChange: null // No historical comparison available
     },
-    iv: stockData?.iv || (30 + Math.abs(pcr - 1) * 40),
-    gex: stockData?.gex || (setupType === 'bullish' ? 500000000 : setupType === 'bearish' ? -500000000 : 0),
+    iv: stockData?.iv || null,
+    gex: stockData?.gex || null,
     keyLevels,
     recommendation: {
       action: setupType === 'bullish' ? 'Buy calls' : setupType === 'bearish' ? 'Buy puts' : 'Sell iron condor',

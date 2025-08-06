@@ -1,3 +1,7 @@
+import { createContextLogger } from './logger';
+
+const logger = createContextLogger('RateLimiter');
+
 interface RateLimiterConfig {
   maxRequests: number;
   windowMs: number;
@@ -40,7 +44,7 @@ class RateLimiter {
       const oldestRequest = validRecords[0];
       const waitTime = oldestRequest.timestamp + this.config.windowMs - now + 1000; // Add 1 second buffer
       
-      console.log(`[${this.config.name}] Rate limit reached (${requestCount}/${this.config.maxRequests}). Waiting ${waitTime}ms...`);
+      logger.debug(`[${this.config.name}] Rate limit reached (${requestCount}/${this.config.maxRequests}). Waiting ${waitTime}ms...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
       
       // Recursive call to check again after waiting

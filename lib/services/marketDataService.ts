@@ -8,6 +8,9 @@ import { polygonRateLimiter, alphaVantageRateLimiter, twelveDataRateLimiter, glo
 import { getSymbolForAPI, isVolatilityIndex } from '../config/special-symbols';
 import { ibkrClient, initializeIBKR } from './ibkrClient';
 import { calculateTechnicalIndicators, calculateOptionsMetrics, calculateIvPercentile } from './yahooFinance';
+import { createContextLogger } from '../utils/logger';
+
+const logger = createContextLogger('MarketDataService');
 
 // Types
 interface MarketQuote {
@@ -86,7 +89,7 @@ async function getTwelveDataQuote(ticker: string): Promise<MarketQuote | null> {
       volume: parseInt(data.volume),
     };
   } catch (error) {
-    console.error(`Twelve Data quote error for ${ticker}:`, error);
+    logger.error(`Twelve Data quote error for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -130,7 +133,7 @@ async function getPolygonQuote(ticker: string): Promise<MarketQuote | null> {
       volume: result.v,
     };
   } catch (error) {
-    console.error(`Polygon quote error for ${ticker}:`, error);
+    logger.error(`Polygon quote error for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -144,14 +147,14 @@ export async function getQuote(ticker: string): Promise<MarketQuote | null> {
   return cachedFetch(
     cacheKey,
     async () => {
-      console.log(`Fetching quote for ${ticker}...`);
+      logger.debug(`Fetching quote for ${ticker}...`);
       
       // Try IBKR first if available
       if (process.env.IBKR_GATEWAY_URL) {
         try {
           const ibkrQuote = await ibkrClient.getQuote(ticker);
           if (ibkrQuote) {
-            console.log(`Got quote for ${ticker} from IBKR`);
+            logger.debug(`Got quote for ${ticker} from IBKR`);
             return {
               ticker,
               date: new Date().toISOString().split('T')[0],
@@ -164,24 +167,24 @@ export async function getQuote(ticker: string): Promise<MarketQuote | null> {
             };
           }
         } catch (error) {
-          console.error(`IBKR quote failed for ${ticker}:`, error);
+          logger.error(`IBKR quote failed for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         }
       }
       
       // Special handling for VIX - prioritize Alpha Vantage which tends to work better for indexes
       if (isVolatilityIndex(ticker)) {
-        console.log(`${ticker} is a volatility index, adjusting API priority...`);
+        logger.debug(`${ticker} is a volatility index, adjusting API priority...`);
         
         // Try Alpha Vantage first for VIX
         if (process.env.ALPHA_VANTAGE_API_KEY) {
           try {
             const quote = await getAlphaVantageQuote(ticker);
             if (quote) {
-              console.log(`Got quote for ${ticker} from Alpha Vantage`);
+              logger.debug(`Got quote for ${ticker} from Alpha Vantage`);
               return quote;
             }
           } catch (error) {
-            console.error(`Alpha Vantage quote failed for ${ticker}:`, error);
+            logger.error(`Alpha Vantage quote failed for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
           }
         }
       }
@@ -191,11 +194,11 @@ export async function getQuote(ticker: string): Promise<MarketQuote | null> {
         try {
           const quote = await getPolygonQuote(ticker);
           if (quote) {
-            console.log(`Got quote for ${ticker} from Polygon`);
+            logger.debug(`Got quote for ${ticker} from Polygon`);
             return quote;
           }
         } catch (error) {
-          console.error(`Polygon quote failed for ${ticker}:`, error);
+          logger.error(`Polygon quote failed for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         }
       }
       
@@ -204,11 +207,11 @@ export async function getQuote(ticker: string): Promise<MarketQuote | null> {
         try {
           const quote = await getAlphaVantageQuote(ticker);
           if (quote) {
-            console.log(`Got quote for ${ticker} from Alpha Vantage`);
+            logger.debug(`Got quote for ${ticker} from Alpha Vantage`);
             return quote;
           }
         } catch (error) {
-          console.error(`Alpha Vantage quote failed for ${ticker}:`, error);
+          logger.error(`Alpha Vantage quote failed for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         }
       }
       
@@ -217,11 +220,11 @@ export async function getQuote(ticker: string): Promise<MarketQuote | null> {
         try {
           const quote = await getTwelveDataQuote(ticker);
           if (quote) {
-            console.log(`Got quote for ${ticker} from Twelve Data`);
+            logger.debug(`Got quote for ${ticker} from Twelve Data`);
             return quote;
           }
         } catch (error) {
-          console.error(`Twelve Data quote failed for ${ticker}:`, error);
+          logger.error(`Twelve Data quote failed for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         }
       }
       
@@ -296,7 +299,7 @@ async function getTwelveDataHistorical(
       adjclose: close, // Twelve Data doesn't provide adjusted close in free tier
     };
   } catch (error) {
-    console.error(`Twelve Data historical error for ${ticker}:`, error);
+    logger.error(`Twelve Data historical error for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -366,7 +369,7 @@ async function getPolygonHistorical(
       adjclose: close, // Polygon doesn't provide adjusted close in free tier
     };
   } catch (error) {
-    console.error(`Polygon historical error for ${ticker}:`, error);
+    logger.error(`Polygon historical error for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -384,14 +387,14 @@ export async function getHistoricalData(
   return cachedFetch(
     cacheKey,
     async () => {
-      console.log(`Fetching historical data for ${ticker}...`);
+      logger.debug(`Fetching historical data for ${ticker}...`);
       
       // Try IBKR first if available
       if (process.env.IBKR_GATEWAY_URL) {
         try {
           const ibkrData = await ibkrClient.getHistoricalData(ticker, period, interval === '1d' ? '1d' : '5min');
           if (ibkrData && ibkrData.length > 0) {
-            console.log(`Got historical data for ${ticker} from IBKR`);
+            logger.debug(`Got historical data for ${ticker} from IBKR`);
             
             const dates: string[] = [];
             const timestamps: number[] = [];
@@ -424,7 +427,7 @@ export async function getHistoricalData(
             };
           }
         } catch (error) {
-          console.error(`IBKR historical data failed for ${ticker}:`, error);
+          logger.error(`IBKR historical data failed for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         }
       }
       
@@ -439,11 +442,11 @@ export async function getHistoricalData(
         try {
           const data = await getPolygonHistorical(ticker, outputsize);
           if (data) {
-            console.log(`Got historical data for ${ticker} from Polygon`);
+            logger.debug(`Got historical data for ${ticker} from Polygon`);
             return data;
           }
         } catch (error) {
-          console.error(`Polygon historical failed for ${ticker}:`, error);
+          logger.error(`Polygon historical failed for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         }
       }
       
@@ -452,11 +455,11 @@ export async function getHistoricalData(
         try {
           const data = await getAlphaVantageHistory(ticker);
           if (data) {
-            console.log(`Got historical data for ${ticker} from Alpha Vantage`);
+            logger.debug(`Got historical data for ${ticker} from Alpha Vantage`);
             return data;
           }
         } catch (error) {
-          console.error(`Alpha Vantage historical failed for ${ticker}:`, error);
+          logger.error(`Alpha Vantage historical failed for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         }
       }
       
@@ -465,11 +468,11 @@ export async function getHistoricalData(
         try {
           const data = await getTwelveDataHistorical(ticker, outputsize);
           if (data) {
-            console.log(`Got historical data for ${ticker} from Twelve Data`);
+            logger.debug(`Got historical data for ${ticker} from Twelve Data`);
             return data;
           }
         } catch (error) {
-          console.error(`Twelve Data historical failed for ${ticker}:`, error);
+          logger.error(`Twelve Data historical failed for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         }
       }
       
@@ -493,7 +496,7 @@ export async function getOptionsChain(
   ticker: string,
   expirationTimestamp?: number
 ): Promise<any> {
-  console.warn(`Options data not available in free tier APIs for ${ticker}`);
+  logger.warn(`Options data not available in free tier APIs for ${ticker}`);
   return null;
 }
 

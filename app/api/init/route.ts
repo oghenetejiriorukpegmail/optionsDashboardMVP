@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { initDb } from '@/lib/db';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('InitAPI');
 
 // Database initialization status
 let dbInitialized = false;
@@ -14,7 +17,7 @@ export async function GET(request: Request) {
       // Initialize database
       await initDb();
       dbInitialized = true;
-      console.log('Database initialized successfully');
+      logger.debug('Database initialized successfully');
       
       return NextResponse.json({ 
         message: 'Database initialized successfully', 
@@ -29,7 +32,7 @@ export async function GET(request: Request) {
       hint: 'Use POST /api/collect-data to manually trigger data collection for specific tickers'
     });
   } catch (error) {
-    console.error('Error initializing database:', error);
+    logger.error('Error initializing database:', {}, error instanceof Error ? error : new Error(String(error)));
     
     return NextResponse.json(
       { 

@@ -1,4 +1,7 @@
 import { callAlphaVantageApi } from './client';
+import { createContextLogger } from '../../utils/logger';
+
+const logger = createContextLogger('AlphaVantageStocks');
 
 /**
  * Fetch intraday time series stock data
@@ -58,7 +61,7 @@ export async function getQuote(ticker: string) {
       volume: parseInt(quote['06. volume'] || '0'),
     };
   } catch (error) {
-    console.error(`Alpha Vantage quote error for ${ticker}:`, error);
+    logger.error(`Alpha Vantage quote error for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -109,7 +112,7 @@ export async function getHistoricalData(ticker: string) {
       adjclose: close, // Alpha Vantage doesn't provide adjusted close in free tier
     };
   } catch (error) {
-    console.error(`Alpha Vantage historical error for ${ticker}:`, error);
+    logger.error(`Alpha Vantage historical error for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }

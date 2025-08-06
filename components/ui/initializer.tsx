@@ -16,7 +16,6 @@ export function Initializer() {
         
         if (data.status === 'ok') {
           setIsInitialized(true);
-          console.log('Application initialized successfully');
         } else {
           console.error('Application initialization failed:', data);
           toast({

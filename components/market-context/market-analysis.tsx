@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../ui/card";
-import { fetchTechnicalIndicators, fetchScannerResults } from "@/lib/api";
+import { fetchScannerResults } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Button } from "../ui/button";
 import { Line } from "react-chartjs-2";
@@ -54,7 +54,6 @@ interface MarketContextProps {
 // Create a simple wrapper component
 export function MarketAnalysis({ ticker }: { ticker?: string }) {
   const symbol = ticker || 'AAPL';
-  console.log('MarketAnalysis component rendering with ticker:', ticker);
   return <MarketContextAnalysis symbol={symbol} ticker={ticker} />;
 }
 
@@ -67,12 +66,15 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
   async function loadIndicators() {
     setLoading(true);
     try {
-      console.log(`Loading indicators for ${symbol}...`);
-      const data = await fetchTechnicalIndicators(symbol);
-      console.log('Technical indicators data:', data);
+      // Use new ticker-context API instead of legacy technical-indicators
+      const response = await fetch(`/api/ticker-context?symbol=${symbol}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ticker context: ${response.status} ${response.statusText}`);
+      }
+      const data = await response.json();
       setIndicators(data);
     } catch (error) {
-      console.error("Error fetching technical indicators:", error);
+      console.error("Error fetching ticker context:", error);
     } finally {
       setLoading(false);
     }
@@ -83,10 +85,18 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
     
     setRefreshing(true);
     try {
-      const data = await fetchTechnicalIndicators(symbol, { refresh: true });
+      // Force refresh by triggering data collection first, then fetch context
+      await fetch(`/api/scanner?symbol=${symbol}&refresh=true`);
+      
+      // Now get the updated context
+      const response = await fetch(`/api/ticker-context?symbol=${symbol}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ticker context: ${response.status} ${response.statusText}`);
+      }
+      const data = await response.json();
       setIndicators(data);
     } catch (error) {
-      console.error("Error refreshing technical indicators:", error);
+      console.error("Error refreshing ticker context:", error);
     } finally {
       setRefreshing(false);
     }
@@ -147,9 +157,21 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
     );
   }
 
-  // Prepare historical data for charts
+  // Prepare historical data for charts with improved date formatting
   const historicalData = indicators.historicalData;
-  const dates = historicalData.map((d: any) => new Date(d.date).toLocaleDateString());
+  const dates = historicalData.map((d: any, index: number) => {
+    const date = new Date(d.date);
+    // Show only every 7th date to avoid overcrowding, or if it's the last point
+    if (index % 7 === 0 || index === historicalData.length - 1) {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    return '';
+  });
+  const fullDates = historicalData.map((d: any) => new Date(d.date).toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: '2-digit' 
+  }));
   const closes = historicalData.map((d: any) => d.close);
   const volumes = historicalData.map((d: any) => d.volume);
   const ema10 = historicalData.map((d: any) => d.ema10);
@@ -170,67 +192,88 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
   // Determine momentum status from RSI and Stochastic RSI
   const momentumStatus = determineMomentumStatus(latestData.rsi, latestData.stochasticRsi);
   
-  // EMA Chart configuration
+  // Enhanced EMA Chart configuration with superior contrast and styling
   const emaChartData = {
     labels: dates,
     datasets: [
       {
-        label: 'Price',
+        label: `${symbol} Price`,
         data: closes,
-        borderColor: 'rgba(75, 192, 192, 1)',
-        backgroundColor: 'rgba(75, 192, 192, 0.1)',
-        tension: 0.3,
-        fill: false,
+        borderColor: '#06b6d4', // Cyan - stands out from EMAs
+        backgroundColor: 'rgba(6, 182, 212, 0.08)',
+        borderWidth: 3.5,
+        pointRadius: 0,
+        pointHoverRadius: 7,
+        tension: 0.2,
+        fill: true,
+        order: 1,
       },
       {
-        label: '10 EMA',
+        label: 'EMA 10 (Fast)',
         data: ema10,
-        borderColor: 'rgba(255, 99, 132, 1)',
-        borderWidth: 2,
+        borderColor: '#ef4444', // Bright red - fastest moving
+        backgroundColor: 'transparent',
+        borderWidth: 3,
         pointRadius: 0,
-        tension: 0.4,
+        pointHoverRadius: 6,
+        tension: 0.3,
+        borderDash: [0], // Solid
+        order: 2,
       },
       {
-        label: '20 EMA',
+        label: 'EMA 20 (Medium)',
         data: ema20,
-        borderColor: 'rgba(54, 162, 235, 1)',
-        borderWidth: 2,
+        borderColor: '#f97316', // Orange - medium speed
+        backgroundColor: 'transparent',
+        borderWidth: 2.5,
         pointRadius: 0,
-        tension: 0.4,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        borderDash: [8, 4], // Medium dashes
+        order: 3,
       },
       {
-        label: '50 EMA',
+        label: 'EMA 50 (Slow)',
         data: ema50,
-        borderColor: 'rgba(153, 102, 255, 1)',
-        borderWidth: 2,
+        borderColor: '#8b5cf6', // Purple - slowest moving
+        backgroundColor: 'transparent',
+        borderWidth: 2.5,
         pointRadius: 0,
-        tension: 0.4,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        borderDash: [12, 6], // Long dashes
+        order: 4,
       },
     ],
   };
   
-  // RSI and Stochastic RSI Chart configuration
+  // Enhanced RSI and Stochastic RSI Chart configuration with better contrast
   const rsiChartData = {
     labels: dates,
     datasets: [
       {
         label: 'RSI (14)',
         data: rsiValues,
-        borderColor: 'rgba(255, 159, 64, 1)',
-        backgroundColor: 'rgba(255, 159, 64, 0.1)',
-        borderWidth: 2,
-        tension: 0.4,
+        borderColor: '#3b82f6', // Bright blue
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderWidth: 3,
+        tension: 0.3,
         fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 6,
         yAxisID: 'y',
       },
       {
         label: 'Stochastic RSI',
         data: stochRsiValues,
-        borderColor: 'rgba(255, 99, 132, 1)',
-        backgroundColor: 'rgba(255, 99, 132, 0.1)',
-        borderWidth: 2,
-        tension: 0.4,
+        borderColor: '#f97316', // Bright orange
+        backgroundColor: 'rgba(249, 115, 22, 0.1)',
+        borderWidth: 2.5,
+        tension: 0.3,
         fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        borderDash: [8, 4], // More prominent dashed pattern
         yAxisID: 'y',
       },
     ],
@@ -347,7 +390,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
           
           <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${indicators.iv > 50 ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" : indicators.iv < 20 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"}`}>
             <PieChart className="h-4 w-4" />
-            IV: {indicators.iv.toFixed(1)}%
+            IV: {indicators.iv && isFinite(indicators.iv) ? `${indicators.iv.toFixed(1)}%` : 'N/A'}
           </span>
         </div>
         
@@ -373,7 +416,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Market Context Summary</CardTitle>
                 <CardDescription>
-                  Current price: <span className="font-semibold">${indicators.price.toFixed(2)}</span>
+                  Current price: <span className="font-semibold">{indicators.price && isFinite(indicators.price) ? `$${indicators.price.toFixed(2)}` : 'N/A'}</span>
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -410,11 +453,11 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Put-Call Ratio:</span>
-                        <span className="font-mono">{indicators.pcr.toFixed(2)}</span>
+                        <span className="font-mono">{indicators.pcr && isFinite(indicators.pcr) ? indicators.pcr.toFixed(2) : 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Implied Volatility:</span>
-                        <span className="font-mono">{indicators.iv.toFixed(1)}%</span>
+                        <span className="font-mono">{indicators.iv && isFinite(indicators.iv) ? `${indicators.iv.toFixed(1)}%` : 'N/A'}</span>
                       </div>
                     </div>
                   </div>
@@ -438,14 +481,14 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                         <span className={`font-mono ${
                           latestData.rsi > 70 ? 'text-red-600 dark:text-red-400' : 
                           latestData.rsi < 30 ? 'text-green-600 dark:text-green-400' : ''
-                        }`}>{latestData.rsi?.toFixed(1) || 'N/A'}</span>
+                        }`}>{latestData.rsi && isFinite(latestData.rsi) ? latestData.rsi.toFixed(1) : 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Stochastic RSI:</span>
                         <span className={`font-mono ${
                           latestData.stochasticRsi > 80 ? 'text-red-600 dark:text-red-400' : 
                           latestData.stochasticRsi < 20 ? 'text-green-600 dark:text-green-400' : ''
-                        }`}>{latestData.stochasticRsi?.toFixed(1) || 'N/A'}</span>
+                        }`}>{latestData.stochasticRsi && isFinite(latestData.stochasticRsi) ? latestData.stochasticRsi.toFixed(1) : 'N/A'}</span>
                       </div>
                     </div>
                   </div>
@@ -467,18 +510,18 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2 p-2 rounded-md bg-muted/30">
                       <div className="text-sm font-medium">Current Price:</div>
-                      <div className="text-sm font-mono text-right">${indicators.price.toFixed(2)}</div>
+                      <div className="text-sm font-mono text-right">{indicators.price && isFinite(indicators.price) ? `$${indicators.price.toFixed(2)}` : 'N/A'}</div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2 p-2 rounded-md bg-muted/30">
                       <div className="text-sm font-medium">EMA (10):</div>
-                      <div className="text-sm font-mono text-right">${latestData.ema10?.toFixed(2) || 'N/A'}</div>
+                      <div className="text-sm font-mono text-right">{latestData.ema10 && isFinite(latestData.ema10) ? `$${latestData.ema10.toFixed(2)}` : 'N/A'}</div>
                       
                       <div className="text-sm font-medium">EMA (20):</div>
-                      <div className="text-sm font-mono text-right">${latestData.ema20?.toFixed(2) || 'N/A'}</div>
+                      <div className="text-sm font-mono text-right">{latestData.ema20 && isFinite(latestData.ema20) ? `$${latestData.ema20.toFixed(2)}` : 'N/A'}</div>
                       
                       <div className="text-sm font-medium">EMA (50):</div>
-                      <div className="text-sm font-mono text-right">${latestData.ema50?.toFixed(2) || 'N/A'}</div>
+                      <div className="text-sm font-mono text-right">{latestData.ema50 && isFinite(latestData.ema50) ? `$${latestData.ema50.toFixed(2)}` : 'N/A'}</div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2 p-2 rounded-md bg-muted/30">
@@ -489,7 +532,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                       <div className={`text-sm font-mono text-right ${
                         indicators.volume.percentChange > 20 ? 'text-green-600 dark:text-green-400' : 
                         indicators.volume.percentChange < -20 ? 'text-red-600 dark:text-red-400' : ''
-                      }`}>{indicators.volume.percentChange.toFixed(1)}%</div>
+                      }`}>{indicators.volume.percentChange && isFinite(indicators.volume.percentChange) ? `${indicators.volume.percentChange.toFixed(1)}%` : 'N/A'}</div>
                     </div>
                   </div>
                 </CardContent>
@@ -510,7 +553,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                       <div className={`text-sm font-mono text-right ${
                         indicators.pcr < 0.7 ? 'text-green-600 dark:text-green-400' : 
                         indicators.pcr > 1.3 ? 'text-red-600 dark:text-red-400' : ''
-                      }`}>{indicators.pcr.toFixed(2)}</div>
+                      }`}>{indicators.pcr && isFinite(indicators.pcr) ? indicators.pcr.toFixed(2) : 'N/A'}</div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2 p-2 rounded-md bg-muted/30">
@@ -518,7 +561,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                       <div className={`text-sm font-mono text-right ${
                         indicators.iv > 50 ? 'text-red-600 dark:text-red-400' : 
                         indicators.iv < 20 ? 'text-green-600 dark:text-green-400' : ''
-                      }`}>{indicators.iv.toFixed(1)}%</div>
+                      }`}>{indicators.iv && isFinite(indicators.iv) ? `${indicators.iv.toFixed(1)}%` : 'N/A'}</div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2 p-2 rounded-md bg-muted/30">
@@ -526,10 +569,10 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                       <div className={`text-sm font-mono text-right ${
                         indicators.gex > 500000000 ? 'text-green-600 dark:text-green-400' : 
                         indicators.gex < -500000000 ? 'text-red-600 dark:text-red-400' : ''
-                      }`}>{(indicators.gex / 1000000).toFixed(1)}M</div>
+                      }`}>{indicators.gex && isFinite(indicators.gex) ? `${(indicators.gex / 1000000).toFixed(1)}M` : 'N/A'}</div>
                       
                       <div className="text-sm font-medium">Max Pain:</div>
-                      <div className="text-sm font-mono text-right">${indicators.maxPain?.toFixed(2) || 'N/A'}</div>
+                      <div className="text-sm font-mono text-right">{indicators.keyLevels?.maxPain && isFinite(indicators.keyLevels.maxPain) ? `$${indicators.keyLevels.maxPain.toFixed(2)}` : 'N/A'}</div>
                     </div>
                   </div>
                 </CardContent>
@@ -545,22 +588,58 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                   Price and Moving Averages
                 </h3>
               </div>
-              <div className="p-4 h-80">
+              <div className="p-4 h-96">
                 <Line data={emaChartData} options={{
                   responsive: true,
+                  maintainAspectRatio: false,
                   interaction: {
                     mode: 'index' as const,
                     intersect: false,
                   },
+                  elements: {
+                    point: {
+                      hoverRadius: 8,
+                    }
+                  },
                   plugins: {
                     legend: {
                       position: 'top' as const,
+                      align: 'start' as const,
+                      labels: {
+                        usePointStyle: true,
+                        pointStyle: 'line',
+                        padding: 20,
+                        font: {
+                          size: 12,
+                          weight: '500',
+                        },
+                        color: '#6b7280',
+                      }
                     },
                     tooltip: {
-                      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                      padding: 12,
+                      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                      titleColor: '#f9fafb',
+                      bodyColor: '#f9fafb',
+                      borderColor: '#374151',
+                      borderWidth: 1,
+                      padding: 16,
+                      cornerRadius: 8,
                       usePointStyle: true,
-                      boxPadding: 6,
+                      boxPadding: 8,
+                      displayColors: true,
+                      callbacks: {
+                        title: (context: any) => {
+                          const index = context[0].dataIndex;
+                          return fullDates[index];
+                        },
+                        label: (context: any) => {
+                          const value = context.parsed.y;
+                          if (context.datasetIndex === 0) {
+                            return `${context.dataset.label}: $${value.toFixed(2)}`;
+                          }
+                          return `${context.dataset.label}: $${value ? value.toFixed(2) : 'N/A'}`;
+                        }
+                      }
                     }
                   },
                   scales: {
@@ -568,15 +647,42 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                       display: true,
                       grid: {
                         display: false,
+                      },
+                      ticks: {
+                        maxRotation: 0,
+                        color: '#9ca3af',
+                        font: {
+                          size: 11,
+                        },
+                        callback: function(value: any, index: number) {
+                          // Only show labels that aren't empty
+                          const label = this.getLabelForValue(value);
+                          return label || '';
+                        }
                       }
                     },
                     y: {
                       display: true,
+                      position: 'right' as const,
                       grid: {
-                        color: 'rgba(0, 0, 0, 0.05)',
+                        color: 'rgba(156, 163, 175, 0.1)',
+                        lineWidth: 1,
+                      },
+                      ticks: {
+                        color: '#9ca3af',
+                        font: {
+                          size: 11,
+                        },
+                        callback: function(value: any) {
+                          return '$' + value.toFixed(2);
+                        }
                       }
                     }
-                  }
+                  },
+                  animation: {
+                    duration: 750,
+                    easing: 'easeInOutQuart',
+                  },
                 }} />
               </div>
             </Card>
@@ -610,15 +716,15 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                   <div className="space-y-1 text-sm">
                     <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/20">
                       <span className="font-medium text-muted-foreground">10 EMA:</span>
-                      <span>${latestData.ema10?.toFixed(2) || 'N/A'}</span>
+                      <span>{latestData.ema10 && isFinite(latestData.ema10) ? `$${latestData.ema10.toFixed(2)}` : 'N/A'}</span>
                     </div>
                     <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/20">
                       <span className="font-medium text-muted-foreground">20 EMA:</span>
-                      <span>${latestData.ema20?.toFixed(2) || 'N/A'}</span>
+                      <span>{latestData.ema20 && isFinite(latestData.ema20) ? `$${latestData.ema20.toFixed(2)}` : 'N/A'}</span>
                     </div>
                     <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/20">
                       <span className="font-medium text-muted-foreground">50 EMA:</span>
-                      <span>${latestData.ema50?.toFixed(2) || 'N/A'}</span>
+                      <span>{latestData.ema50 && isFinite(latestData.ema50) ? `$${latestData.ema50.toFixed(2)}` : 'N/A'}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -690,7 +796,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                         indicators.volume.percentChange < -20 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 
                         'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                       }`}>
-                        {indicators.volume.percentChange > 0 ? '+' : ''}{indicators.volume.percentChange.toFixed(1)}%
+                        {indicators.volume.percentChange && isFinite(indicators.volume.percentChange) ? `${indicators.volume.percentChange > 0 ? '+' : ''}${indicators.volume.percentChange.toFixed(1)}%` : 'N/A'}
                       </span>
                     </div>
                     
@@ -725,29 +831,44 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
               <div className="p-4 h-80">
                 <Line data={rsiChartData} options={{
                   responsive: true,
+                  maintainAspectRatio: false,
                   interaction: {
                     mode: 'index' as const,
                     intersect: false,
+                  },
+                  elements: {
+                    point: {
+                      hoverRadius: 8,
+                    }
                   },
                   scales: {
                     y: {
                       min: 0,
                       max: 100,
+                      position: 'right' as const,
                       ticks: {
                         stepSize: 20,
+                        color: '#9ca3af',
+                        font: {
+                          size: 11,
+                        },
                       },
                       grid: {
                         color: (context: any) => {
                           if (context.tick.value === 30 || context.tick.value === 70) {
-                            return 'rgba(255, 99, 132, 0.2)';
+                            return 'rgba(239, 68, 68, 0.3)'; // Red lines for oversold/overbought
+                          } else if (context.tick.value === 50) {
+                            return 'rgba(156, 163, 175, 0.2)'; // Gray line for midline
                           }
-                          return 'rgba(0, 0, 0, 0.05)';
+                          return 'rgba(156, 163, 175, 0.05)';
                         },
                         lineWidth: (context: any) => {
                           if (context.tick.value === 30 || context.tick.value === 70) {
                             return 2;
+                          } else if (context.tick.value === 50) {
+                            return 1;
                           }
-                          return 1;
+                          return 0.5;
                         },
                       },
                     },
@@ -755,19 +876,61 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                       display: true,
                       grid: {
                         display: false,
+                      },
+                      ticks: {
+                        maxRotation: 0,
+                        color: '#9ca3af',
+                        font: {
+                          size: 11,
+                        },
+                        callback: function(value: any, index: number) {
+                          const label = this.getLabelForValue(value);
+                          return label || '';
+                        }
                       }
                     },
                   },
                   plugins: {
                     legend: {
                       position: 'top' as const,
+                      align: 'start' as const,
+                      labels: {
+                        usePointStyle: true,
+                        pointStyle: 'line',
+                        padding: 20,
+                        font: {
+                          size: 12,
+                          weight: '500',
+                        },
+                        color: '#6b7280',
+                      }
                     },
                     tooltip: {
-                      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                      padding: 12,
+                      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                      titleColor: '#f9fafb',
+                      bodyColor: '#f9fafb',
+                      borderColor: '#374151',
+                      borderWidth: 1,
+                      padding: 16,
+                      cornerRadius: 8,
                       usePointStyle: true,
-                      boxPadding: 6,
+                      boxPadding: 8,
+                      displayColors: true,
+                      callbacks: {
+                        title: (context: any) => {
+                          const index = context[0].dataIndex;
+                          return fullDates[index];
+                        },
+                        label: (context: any) => {
+                          const value = context.parsed.y;
+                          return `${context.dataset.label}: ${value ? value.toFixed(1) : 'N/A'}`;
+                        }
+                      }
                     }
+                  },
+                  animation: {
+                    duration: 750,
+                    easing: 'easeInOutQuart',
                   },
                 }} />
               </div>
@@ -788,7 +951,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                       latestData.rsi > 70 ? 'text-red-600 dark:text-red-400' : 
                       latestData.rsi < 30 ? 'text-green-600 dark:text-green-400' : ''
                     }`}>
-                      {latestData.rsi?.toFixed(1) || 'N/A'}
+                      {latestData.rsi && isFinite(latestData.rsi) ? latestData.rsi.toFixed(1) : 'N/A'}
                     </div>
                     <div className={`px-2 py-0.5 text-xs rounded-full ${
                       latestData.rsi > 70 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 
@@ -844,7 +1007,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                       latestData.stochasticRsi > 80 ? 'text-red-600 dark:text-red-400' : 
                       latestData.stochasticRsi < 20 ? 'text-green-600 dark:text-green-400' : ''
                     }`}>
-                      {latestData.stochasticRsi?.toFixed(1) || 'N/A'}
+                      {latestData.stochasticRsi && isFinite(latestData.stochasticRsi) ? latestData.stochasticRsi.toFixed(1) : 'N/A'}
                     </div>
                     <div className={`px-2 py-0.5 text-xs rounded-full ${
                       latestData.stochasticRsi > 80 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 
@@ -1103,6 +1266,8 @@ function formatLargeNumber(num: number | null | undefined) {
   if (num === null || num === undefined) {
     return 'N/A';
   }
+  if (!num || !isFinite(num)) return 'N/A';
+  
   if (num >= 1000000) {
     return `${(num / 1000000).toFixed(2)}M`;
   } else if (num >= 1000) {

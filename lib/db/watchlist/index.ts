@@ -1,4 +1,7 @@
 import { getDb } from '../index';
+import { createContextLogger } from '../../utils/logger';
+
+const logger = createContextLogger('Watchlist');
 
 // Type for watchlist items
 export interface WatchlistItem {
@@ -36,7 +39,7 @@ export async function getWatchlist(): Promise<WatchlistItem[]> {
     
     return await db.all(`SELECT * FROM watchlist ORDER BY addedOn DESC`);
   } catch (error) {
-    console.error('Error getting watchlist:', error);
+    logger.error('Error getting watchlist:', {}, error instanceof Error ? error : new Error(String(error)));
     return [];
   }
 }
@@ -75,7 +78,7 @@ export async function addToWatchlist(item: Omit<WatchlistItem, 'id' | 'addedOn'>
       message: `Added ${item.symbol} to watchlist`
     };
   } catch (error) {
-    console.error('Error adding to watchlist:', error);
+    logger.error('Error adding to watchlist:', {}, error instanceof Error ? error : new Error(String(error)));
     return { 
       success: false, 
       message: error instanceof Error ? error.message : String(error)
@@ -102,7 +105,7 @@ export async function removeFromWatchlist(symbol: string): Promise<{ success: bo
       message: `Removed ${symbol} from watchlist`
     };
   } catch (error) {
-    console.error('Error removing from watchlist:', error);
+    logger.error('Error removing from watchlist:', {}, error instanceof Error ? error : new Error(String(error)));
     return { 
       success: false, 
       message: error instanceof Error ? error.message : String(error)
@@ -118,7 +121,7 @@ export async function getWatchlistItem(symbol: string): Promise<WatchlistItem | 
     const item = await db.get(`SELECT * FROM watchlist WHERE symbol = ?`, [symbol]);
     return item || null;
   } catch (error) {
-    console.error(`Error getting watchlist item for ${symbol}:`, error);
+    logger.error(`Error getting watchlist item for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
     return null;
   }
 }

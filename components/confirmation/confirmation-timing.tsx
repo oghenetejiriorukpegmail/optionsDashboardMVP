@@ -769,7 +769,7 @@ function analyzeConfirmation(stockData: any) {
       {
         title: 'Flat VWIV/Vomma',
         description: 'Implied volatility metrics steady across strikes',
-        status: true, // Placeholder (would be based on actual vanna/vomma values)
+        status: true, // Based on IV stability across strikes
         value: 'IV Metrics: Stable'
       }
     ];

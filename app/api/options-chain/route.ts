@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
-import axios from 'axios';
+import dataProviderFactory from '@/lib/data-providers';
 import { ibkrClient, initializeIBKR } from '@/lib/services/ibkrClient';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Options Chain API');
 
 // Cache for options chain data
 const optionsCache: Record<string, { data: any; timestamp: number }> = {};
@@ -12,7 +15,10 @@ export async function GET(request: Request) {
     const symbol = searchParams.get('symbol');
     const expiration = searchParams.get('expiration');
     
+    logger.debug('Options chain request received', { symbol, expiration });
+    
     if (!symbol) {
+      logger.warn('Options chain request missing symbol parameter');
       return NextResponse.json({ error: 'Symbol parameter is required' }, { status: 400 });
     }
     
@@ -22,18 +28,21 @@ export async function GET(request: Request) {
     // Check if we have valid cached data
     const now = Date.now();
     if (optionsCache[cacheKey] && now - optionsCache[cacheKey].timestamp < CACHE_DURATION) {
+      logger.debug('Returning cached options data', { symbol, expiration, cacheKey });
       return NextResponse.json(optionsCache[cacheKey].data);
     }
     
     // Determine if we should fetch expirations list or specific chain
     if (!expiration) {
       // If no expiration provided, return all available expirations
-      const expirations = await fetchOptionExpirations(symbol);
+      logger.debug('Fetching option expirations', { symbol });
+      const result = await fetchOptionExpirations(symbol);
       
       const response = {
         symbol,
-        expirations,
-        timestamp: new Date().toISOString()
+        expirations: result.expirations,
+        timestamp: new Date().toISOString(),
+        dataSource: result.dataSource || 'none'
       };
       
       // Cache the response
@@ -45,13 +54,26 @@ export async function GET(request: Request) {
       return NextResponse.json(response);
     } else {
       // If expiration provided, return options chain for that date
+      logger.debug('Fetching options chain', { symbol, expiration });
       const optionsChain = await fetchOptionsChain(symbol, expiration);
+      
+      if (!optionsChain) {
+        return NextResponse.json({ 
+          error: true, 
+          message: 'Failed to fetch options chain',
+          details: 'No data available for the specified symbol and expiration'
+        }, { status: 404 });
+      }
       
       const response = {
         symbol,
         expiration,
-        strikes: optionsChain,
-        timestamp: new Date().toISOString()
+        strikes: optionsChain.strikes,
+        calls: optionsChain.calls,
+        puts: optionsChain.puts,
+        timestamp: new Date().toISOString(),
+        dataSource: optionsChain.dataSource,
+        dataLatency: optionsChain.latency
       };
       
       // Cache the response
@@ -63,7 +85,7 @@ export async function GET(request: Request) {
       return NextResponse.json(response);
     }
   } catch (error) {
-    console.error('Error fetching options chain:', error);
+    logger.error('Error in options chain API', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json({ 
       error: true, 
       message: 'Failed to fetch options chain',
@@ -72,133 +94,78 @@ export async function GET(request: Request) {
   }
 }
 
-// Mock function to fetch option expirations (simulated for demo)
-async function fetchOptionExpirations(symbol: string): Promise<string[]> {
-  // In a real implementation, this would call a proper options data API
-  
-  // Generate a series of future expiration dates (3rd Friday of upcoming months)
-  const expirations: string[] = [];
-  const now = new Date();
-  
-  for (let i = 0; i < 6; i++) {
-    const date = new Date(now);
-    date.setMonth(date.getMonth() + i);
-    date.setDate(1); // Set to first day of month
+// Fetch available option expirations using data provider
+async function fetchOptionExpirations(symbol: string): Promise<{ expirations: string[], dataSource?: string }> {
+  try {
+    // Try IBKR first if available
+    if (process.env.IBKR_GATEWAY_URL) {
+      try {
+        const initialized = await initializeIBKR();
+        if (initialized) {
+          const expirations = await ibkrClient.getOptionsChain(symbol).then(chain => 
+            chain ? chain.expirations : null
+          );
+          if (expirations && expirations.length > 0) {
+            // Got option expirations from IBKR
+            return { expirations, dataSource: 'IBKR' };
+          }
+        }
+      } catch (error) {
+        logger.debug('IBKR option expirations failed, falling back', { symbol, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
     
-    // Find the third Friday
-    const dayOfWeek = date.getDay();
-    const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
-    date.setDate(date.getDate() + daysUntilFriday + 14); // First Friday + 14 days = third Friday
+    // Use data provider factory
+    const expirations = await dataProviderFactory.getAvailableExpirations(symbol);
+    if (expirations) {
+      return { expirations, dataSource: 'Yahoo Finance' };
+    }
     
-    expirations.push(date.toISOString().split('T')[0]);
+    // If no data available from any provider, return empty array
+    return { expirations: [], dataSource: 'none' };
+  } catch (error) {
+    logger.error('Error fetching option expirations', { symbol }, error instanceof Error ? error : new Error(String(error)));
+    throw error;
   }
-  
-  return expirations;
 }
 
-// Mock function to fetch options chain for a specific expiration (simulated for demo)
-async function fetchOptionsChain(symbol: string, expiration: string): Promise<any[]> {
-  // Try IBKR first if available
-  if (process.env.IBKR_GATEWAY_URL) {
-    try {
-      const initialized = await initializeIBKR();
-      if (initialized) {
-        const optionsChain = await ibkrClient.getOptionsChain(symbol);
-        if (optionsChain && optionsChain.strikes.length > 0) {
-          console.log(`Got options chain for ${symbol} from IBKR`);
-          return optionsChain.strikes;
-        }
-      }
-    } catch (error) {
-      console.error(`IBKR options chain failed for ${symbol}:`, error);
-    }
-  }
-  
-  // Fall back to synthetic data generation
-  console.log(`Generating synthetic options chain for ${symbol}`);
-  
-  // Generate a series of strikes around the current price
+// Fetch options chain for a specific expiration using data provider
+async function fetchOptionsChain(symbol: string, expiration: string): Promise<any> {
   try {
-    // Try to get the current price from a basic API
-    const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`);
-    const price = response.data.chart.result[0].meta.regularMarketPrice;
-    
-    // Generate strikes around the current price
-    const strikes = [];
-    const strikeCount = 15; // Number of strikes above and below the current price
-    const strikeStep = Math.max(1, Math.round(price * 0.025) / 5) * 5; // Round to nearest $5
-    
-    for (let i = -strikeCount; i <= strikeCount; i++) {
-      const strike = Math.round((price + i * strikeStep) * 2) / 2; // Round to nearest $0.5
-      
-      if (strike <= 0) continue;
-      
-      // Generate IV based on strike distance from current price
-      // Further OTM options typically have higher IV (volatility smile)
-      const strikeDist = Math.abs(strike - price) / price;
-      const baseIV = 0.3 + strikeDist * 0.5; // Base IV of 30% plus smile effect
-      
-      // Higher gamma near the current price
-      const gamma = strikeDist < 0.05 ? 0.08 - strikeDist : 0.03 - strikeDist;
-      
-      // Vanna is higher when IV is changing rapidly (slope of volatility smile)
-      const vanna = strikeDist > 0.02 && strikeDist < 0.1 ? 0.05 - strikeDist * 0.3 : 0.01;
-      
-      // Charm is time decay of delta, higher for ATM options
-      const charm = strikeDist < 0.03 ? 0.04 - strikeDist : 0.01;
-      
-      // Vomma is sensitivity of vega to IV changes, higher for OTM options
-      const vomma = strikeDist > 0.1 ? 0.15 : 0.05 + strikeDist * 0.5;
-      
-      // Generate synthetic OI and volume data based on strike
-      const strikeProximityFactor = 1 - Math.min(1, strikeDist * 10);
-      const baseOI = 1000 + Math.random() * 9000;
-      
-      strikes.push({
-        strike,
-        callOpenInterest: Math.round(baseOI * (strike > price ? 1.5 : 0.8) * strikeProximityFactor),
-        putOpenInterest: Math.round(baseOI * (strike < price ? 1.5 : 0.8) * strikeProximityFactor),
-        callVolume: Math.round((baseOI * 0.1) * (strike > price ? 1.3 : 0.7) * strikeProximityFactor),
-        putVolume: Math.round((baseOI * 0.1) * (strike < price ? 1.3 : 0.7) * strikeProximityFactor),
-        callIV: baseIV + (strike > price ? 0.05 : 0),
-        putIV: baseIV + (strike < price ? 0.05 : 0),
-        gamma: Math.max(0, gamma),
-        vanna: vanna,
-        charm: charm,
-        vomma: vomma
-      });
+    // Try IBKR first if available
+    if (process.env.IBKR_GATEWAY_URL) {
+      try {
+        const initialized = await initializeIBKR();
+        if (initialized) {
+          const optionsChain = await ibkrClient.getOptionsChain(symbol);
+          if (optionsChain && optionsChain.strikes.length > 0) {
+            // Transform IBKR strikes into calls and puts arrays
+            const calls = optionsChain.strikes.map(strike => strike.call).filter(Boolean);
+            const puts = optionsChain.strikes.map(strike => strike.put).filter(Boolean);
+            
+            return {
+              strikes: optionsChain.strikes,
+              calls,
+              puts,
+              dataSource: 'IBKR',
+              latency: 0
+            };
+          }
+        }
+      } catch (error) {
+        logger.debug('IBKR options chain failed, falling back', { symbol, expiration, error: error instanceof Error ? error.message : String(error) });
+      }
     }
     
-    return strikes;
+    // Use data provider factory
+    const optionsChain = await dataProviderFactory.getOptionsChain(symbol, expiration);
+    if (optionsChain) {
+      return optionsChain;
+    }
+    
+    return null;
   } catch (error) {
-    console.error(`Error fetching price for ${symbol}:`, error);
-    
-    // Fallback to a default price and generate strikes around it
-    const defaultPrice = 100;
-    
-    // Generate strikes around the default price
-    const strikes = [];
-    const strikeCount = 15;
-    const strikeStep = 5;
-    
-    for (let i = -strikeCount; i <= strikeCount; i++) {
-      const strike = defaultPrice + i * strikeStep;
-      
-      if (strike <= 0) continue;
-      
-      strikes.push({
-        strike,
-        callOpenInterest: Math.round(1000 + Math.random() * 9000),
-        putOpenInterest: Math.round(1000 + Math.random() * 9000),
-        callVolume: Math.round(100 + Math.random() * 900),
-        putVolume: Math.round(100 + Math.random() * 900),
-        gamma: Math.max(0, 0.04 - Math.abs(strike - defaultPrice) / defaultPrice * 0.1),
-        vanna: 0.02,
-        charm: 0.01,
-        vomma: 0.05
-      });
-    }
-    
-    return strikes;
+    logger.error('Error fetching options chain', { symbol, expiration }, error instanceof Error ? error : new Error(String(error)));
+    throw error;
   }
 }

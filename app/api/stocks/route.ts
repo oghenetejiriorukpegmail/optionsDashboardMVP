@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('StocksAPI');
 import { 
   getLatestStockData,
   getLatestTechnicalIndicators,
@@ -17,7 +20,7 @@ export async function GET() {
           // Get latest stock data
           const stockData = await getLatestStockData(symbol);
           if (!stockData) {
-            console.log(`No stock data found for ${symbol} in database`);
+            logger.debug(`No stock data found for ${symbol} in database`);
             return null;
           }
           
@@ -68,7 +71,7 @@ export async function GET() {
             date: stockData.date
           };
         } catch (error) {
-          console.error(`Error fetching data for ${symbol}:`, error);
+          logger.error(`Error fetching data for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
           return null;
         }
       })
@@ -91,7 +94,7 @@ export async function GET() {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error in stocks API:', error);
+    logger.error('Error in stocks API:', {}, error instanceof Error ? error : new Error(String(error)));
     
     return NextResponse.json({ 
       error: true, 

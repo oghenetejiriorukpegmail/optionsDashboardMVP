@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ibkrClient, initializeIBKR } from '@/lib/services/ibkrClient';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Options Chain IBKR API');
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -14,7 +17,7 @@ export async function GET(request: NextRequest) {
     // Ensure IBKR is initialized
     const initialized = await initializeIBKR();
     if (!initialized) {
-      console.log('IBKR not available, falling back to synthetic data');
+      logger.debug('IBKR not available, falling back to synthetic data');
       // Fall back to synthetic options chain
       return generateSyntheticOptionsChain(ticker);
     }
@@ -23,7 +26,7 @@ export async function GET(request: NextRequest) {
     const optionsChain = await ibkrClient.getOptionsChain(ticker);
     
     if (!optionsChain) {
-      console.log('No options chain data from IBKR, generating synthetic data');
+      logger.debug('No options chain data from IBKR, generating synthetic data');
       return generateSyntheticOptionsChain(ticker);
     }
 
@@ -45,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error fetching IBKR options chain:', error);
+    logger.error('Error fetching IBKR options chain:', {}, error instanceof Error ? error : new Error(String(error)));
     // Fall back to synthetic data on error
     return generateSyntheticOptionsChain(ticker);
   }

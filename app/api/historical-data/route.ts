@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getStockData, getTechnicalIndicators, getMarketSentiment } from '@/lib/db/repository';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Historical Data API');
 
 // GET /api/historical-data?ticker=TSLA&type=price&days=30 - Get historical data
 export async function GET(request: Request) {
@@ -40,7 +43,7 @@ export async function GET(request: Request) {
     
     return NextResponse.json({ data });
   } catch (error) {
-    console.error('Error fetching historical data:', error);
+    logger.error('Error fetching historical data:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { error: 'Failed to fetch historical data' },
       { status: 500 }

@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Options Dashboard Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATABASE_URL=/app/data/options_scanner.db
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      - db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # SQLite Database Container (for backup and initialization)
+  db:
+    image: alpine:latest
+    command: tail -f /dev/null  # Keep container running
+    volumes:
+      - app_data:/data
+      - ./scripts:/scripts:ro
+    environment:
+      - DB_PATH=/data/options_scanner.db
+    restart: unless-stopped
+    
+  # Optional: Database management interface (Adminer)
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=sqlite:////data/options_scanner.db
+    volumes:
+      - app_data:/data:ro
+    restart: unless-stopped
+    profiles:
+      - tools  # Only start with --profile tools
+
+volumes:
+  app_data:
+    driver: local
+
+networks:
+  default:
+    name: options_dashboard_network

@@ -21,7 +21,7 @@ export async function fetchStocks() {
  */
 export async function fetchOptionsChain(symbol: string, expiration?: string) {
   try {
-    let url = `/api/options-data?ticker=${symbol}`;
+    let url = `/api/options-chain?symbol=${symbol}`;
     if (expiration) {
       url += `&expiration=${expiration}`;
     }
@@ -149,8 +149,6 @@ export async function fetchScannerResults(options: ScannerOptions = {}) {
     const queryString = params.toString();
     const url = `/api/scanner${queryString ? `?${queryString}` : ''}`;
 
-    console.log('Fetching scanner results with URL:', url);
-
     // Add retry logic for production
     let retries = 0;
     const maxRetries = 3;
@@ -167,7 +165,6 @@ export async function fetchScannerResults(options: ScannerOptions = {}) {
       retries++;
       if (retries < maxRetries) {
         const delay = retries * 1000; // Exponential backoff
-        console.log(`Retrying scanner API (${retries}/${maxRetries}) after ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -262,13 +259,28 @@ export async function fetchScannerResults(options: ScannerOptions = {}) {
  */
 export async function fetchWatchlist() {
   try {
-    const response = await fetch('/api/watchlist');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
+    const response = await fetch('/api/watchlist', {
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    clearTimeout(timeoutId);
+    
     if (!response.ok) {
       throw new Error(`Failed to fetch watchlist: ${response.status} ${response.statusText}`);
     }
     return await response.json();
   } catch (error) {
-    console.error('Error fetching watchlist:', error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('Watchlist fetch timed out, returning empty list');
+    } else {
+      console.error('Error fetching watchlist:', error);
+    }
     return [];
   }
 }

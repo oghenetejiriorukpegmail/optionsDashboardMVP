@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { manuallyCollectData } from '@/lib/services/dataCollector';
 import { manuallyCollectData as enhancedCollectData } from '@/lib/services/enhancedDataCollector';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('CollectDataAPI');
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +17,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.log(`Manually collecting data for ${ticker} (enhanced: ${enhanced})`);
+    logger.debug(`Manually collecting data for ${ticker} (enhanced: ${enhanced})`);
     
     // Use enhanced collector if specified, otherwise use regular
     if (enhanced) {
@@ -30,7 +33,7 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error in collect-data API:', error);
+    logger.error('Error in collect-data API:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { 
         error: true, 

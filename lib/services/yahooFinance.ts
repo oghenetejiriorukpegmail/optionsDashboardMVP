@@ -1,6 +1,9 @@
 import axios from 'axios';
 import * as talib from 'ta-lib';
 import { SCANNER_CONFIG } from '@/lib/config';
+import { createContextLogger } from '../utils/logger';
+
+const logger = createContextLogger('YahooFinance');
 
 // Types for Yahoo Finance API responses
 interface YahooQuote {
@@ -95,7 +98,7 @@ export async function getQuote(ticker: string): Promise<{
 
   while (attempts < API_RETRY_ATTEMPTS) {
     try {
-      console.log(`Fetching quote for ${ticker} (attempt ${attempts + 1}/${API_RETRY_ATTEMPTS})...`);
+      logger.debug(`Fetching quote for ${ticker} (attempt ${attempts + 1}/${API_RETRY_ATTEMPTS})...`);
 
       const response = await axios.get(YAHOO_FINANCE_API.QUOTE, {
         params: {
@@ -108,7 +111,7 @@ export async function getQuote(ticker: string): Promise<{
       const quoteData = response.data.quoteResponse.result[0] as YahooQuote;
 
       if (!quoteData) {
-        console.error(`No quote data found for ${ticker}`);
+        logger.error(`No quote data found for ${ticker}`);
         return null;
       }
 
@@ -124,12 +127,12 @@ export async function getQuote(ticker: string): Promise<{
       };
     } catch (error: any) {
       attempts++;
-      console.error(`Error fetching quote for ${ticker} (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
+      logger.error(`Error fetching quote for ${ticker} (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
 
       // If we got a 429 (Too Many Requests) status code, wait longer
       if (error.response && error.response.status === 429) {
         const backoffTime = Math.min(API_RETRY_DELAY * Math.pow(2, attempts), 10000);
-        console.log(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
+        logger.debug(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
         await delay(backoffTime);
       } else {
         // For other errors, use standard delay between retries
@@ -140,7 +143,7 @@ export async function getQuote(ticker: string): Promise<{
     }
   }
 
-  console.error(`Failed to fetch quote for ${ticker} after ${API_RETRY_ATTEMPTS} attempts`);
+  logger.error(`Failed to fetch quote for ${ticker} after ${API_RETRY_ATTEMPTS} attempts`);
   return null;
 }
 
@@ -163,7 +166,7 @@ export async function getHistoricalData(
 
   while (attempts < API_RETRY_ATTEMPTS) {
     try {
-      console.log(`Fetching historical data for ${ticker} (attempt ${attempts + 1}/${API_RETRY_ATTEMPTS})...`);
+      logger.debug(`Fetching historical data for ${ticker} (attempt ${attempts + 1}/${API_RETRY_ATTEMPTS})...`);
 
       const response = await axios.get(`${YAHOO_FINANCE_API.HISTORY}/${ticker}`, {
         params: {
@@ -177,7 +180,7 @@ export async function getHistoricalData(
 
       const result = response.data.chart.result[0];
       if (!result) {
-        console.error(`No historical data found for ${ticker}`);
+        logger.error(`No historical data found for ${ticker}`);
         return null;
       }
 
@@ -198,12 +201,12 @@ export async function getHistoricalData(
       };
     } catch (error: any) {
       attempts++;
-      console.error(`Error fetching historical data for ${ticker} (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
+      logger.error(`Error fetching historical data for ${ticker} (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
 
       // If we got a 429 (Too Many Requests) status code, wait longer
       if (error.response && error.response.status === 429) {
         const backoffTime = Math.min(API_RETRY_DELAY * Math.pow(2, attempts), 10000);
-        console.log(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
+        logger.debug(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
         await delay(backoffTime);
       } else {
         // For other errors, use standard delay between retries
@@ -214,7 +217,7 @@ export async function getHistoricalData(
     }
   }
 
-  console.error(`Failed to fetch historical data for ${ticker} after ${API_RETRY_ATTEMPTS} attempts`);
+  logger.error(`Failed to fetch historical data for ${ticker} after ${API_RETRY_ATTEMPTS} attempts`);
   return null;
 }
 
@@ -231,7 +234,7 @@ export async function getOptionsChain(ticker: string, expirationTimestamp?: numb
 
   while (attempts < API_RETRY_ATTEMPTS) {
     try {
-      console.log(`Fetching options chain for ${ticker} (attempt ${attempts + 1}/${API_RETRY_ATTEMPTS})...`);
+      logger.debug(`Fetching options chain for ${ticker} (attempt ${attempts + 1}/${API_RETRY_ATTEMPTS})...`);
 
       let url = `${YAHOO_FINANCE_API.OPTIONS}/${ticker}`;
       if (expirationTimestamp) {
@@ -245,7 +248,7 @@ export async function getOptionsChain(ticker: string, expirationTimestamp?: numb
       const optionChain = response.data.optionChain.result[0] as YahooOptionChain;
 
       if (!optionChain) {
-        console.error(`No options chain found for ${ticker}`);
+        logger.error(`No options chain found for ${ticker}`);
         return null;
       }
 
@@ -262,12 +265,12 @@ export async function getOptionsChain(ticker: string, expirationTimestamp?: numb
       };
     } catch (error: any) {
       attempts++;
-      console.error(`Error fetching options chain for ${ticker} (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
+      logger.error(`Error fetching options chain for ${ticker} (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, error.message || error);
 
       // If we got a 429 (Too Many Requests) status code, wait longer
       if (error.response && error.response.status === 429) {
         const backoffTime = Math.min(API_RETRY_DELAY * Math.pow(2, attempts), 10000);
-        console.log(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
+        logger.debug(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
         await delay(backoffTime);
       } else {
         // For other errors, use standard delay between retries
@@ -278,7 +281,7 @@ export async function getOptionsChain(ticker: string, expirationTimestamp?: numb
     }
   }
 
-  console.error(`Failed to fetch options chain for ${ticker} after ${API_RETRY_ATTEMPTS} attempts`);
+  logger.error(`Failed to fetch options chain for ${ticker} after ${API_RETRY_ATTEMPTS} attempts`);
   return null;
 }
 
@@ -295,13 +298,42 @@ export function calculateTechnicalIndicators(historicalData: {
   stochRsi: number[];
 } {
   try {
+    // Validate input data (need at least 60 days for reliable 50-day EMA + 14-day RSI)
+    if (!historicalData.close || historicalData.close.length < 60) {
+      logger.warn(`Insufficient historical data for accurate technical indicators: ${historicalData.close?.length || 0} points (need 60+)`);
+      return {
+        ema10: [],
+        ema20: [],
+        ema50: [],
+        rsi14: [],
+        stochRsi: [],
+      };
+    }
+    
     // EMA calculations
     const ema10 = talib.EMA(historicalData.close, 10);
     const ema20 = talib.EMA(historicalData.close, 20);
     const ema50 = talib.EMA(historicalData.close, 50);
     
-    // RSI calculation
+    // RSI calculation with validation
     const rsi14 = talib.RSI(historicalData.close, 14);
+    
+    // Validate RSI results and cap at reasonable values
+    const validatedRsi14 = rsi14.map((value, index) => {
+      if (value === null || value === undefined || !isFinite(value)) {
+        return NaN;
+      }
+      // Cap RSI at 100 (shouldn't be needed but safety check)
+      if (value > 100) {
+        logger.warn(`RSI value ${value} capped at 100 for index ${index}`);
+        return 100;
+      }
+      if (value < 0) {
+        logger.warn(`RSI value ${value} capped at 0 for index ${index}`);
+        return 0;
+      }
+      return value;
+    });
     
     // Stochastic RSI calculation (simplified)
     // Note: This is a simplified version - for accurate Stochastic RSI, you may need a library that supports it directly
@@ -310,8 +342,8 @@ export function calculateTechnicalIndicators(historicalData: {
     const kPeriod = 3;
     const dPeriod = 3;
     
-    // Calculate RSI for Stochastic RSI
-    const rsiValues = talib.RSI(historicalData.close, rsiPeriod);
+    // Calculate RSI for Stochastic RSI (use validated RSI)
+    const rsiValues = validatedRsi14;
     
     // Calculate Stochastic of RSI
     const stochRsi = [];
@@ -332,11 +364,11 @@ export function calculateTechnicalIndicators(historicalData: {
       ema10,
       ema20,
       ema50,
-      rsi14,
+      rsi14: validatedRsi14,
       stochRsi: [...padding, ...stochRsi],
     };
   } catch (error) {
-    console.error('Error calculating technical indicators:', error);
+    logger.error('Error calculating technical indicators:', {}, error instanceof Error ? error : new Error(String(error)));
     return {
       ema10: [],
       ema20: [],

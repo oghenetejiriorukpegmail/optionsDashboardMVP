@@ -1,14 +1,12 @@
-import { 
-  getQuote, 
-  getHistoricalData
-} from './marketDataService';
+// Use the new data provider factory instead of old marketDataService
 
 import { 
-  getOptionsChain, 
   calculateTechnicalIndicators,
   calculateOptionsMetrics,
   calculateIvPercentile
-} from './yahooFinanceSimple';
+} from './yahooFinance';
+
+import dataProviderFactory from '../data-providers';
 
 import { 
   saveStockData, 
@@ -16,11 +14,101 @@ import {
   saveOptionsData, 
   saveMarketSentiment, 
   saveDailySummary,
-  getHistoricalData as getDbHistoricalData
+  getHistoricalData as getDbHistoricalData,
+  getOptionsData
 } from '../db/repository';
 
-// Default tickers to track
-const DEFAULT_TICKERS = ['TSLA', 'AAPL', 'AMZN', 'MSFT', 'NVDA', 'GOOGL', 'META', 'NFLX', 'AMD', 'INTC'];
+import { createContextLogger } from '../utils/logger';
+
+const logger = createContextLogger('DataCollector');
+
+// Calculate options metrics from database data
+function calculateOptionsMetricsFromDb(dbOptionsData: any[], currentPrice: number): {
+  pcr: number;
+  maxPain: number;
+  totalCallOi: number;
+  totalPutOi: number;
+  totalCallVolume: number;
+  totalPutVolume: number;
+  vwiv: number;
+  gammaExposure: number;
+} {
+  if (!dbOptionsData || dbOptionsData.length === 0) {
+    return {
+      pcr: 1.0,
+      maxPain: currentPrice,
+      totalCallOi: 0,
+      totalPutOi: 0,
+      totalCallVolume: 0,
+      totalPutVolume: 0,
+      vwiv: 0.3,
+      gammaExposure: 0
+    };
+  }
+
+  // Calculate totals from database format
+  const totalCallOi = dbOptionsData.reduce((sum, option) => sum + (option.call_oi || 0), 0);
+  const totalPutOi = dbOptionsData.reduce((sum, option) => sum + (option.put_oi || 0), 0);
+  const totalCallVolume = dbOptionsData.reduce((sum, option) => sum + (option.call_volume || 0), 0);
+  const totalPutVolume = dbOptionsData.reduce((sum, option) => sum + (option.put_volume || 0), 0);
+
+  // Calculate PCR
+  const pcr = totalCallOi > 0 ? totalPutOi / totalCallOi : 1.0;
+
+  // Calculate Max Pain - simplified version using OI data
+  let maxPainStrike = currentPrice;
+  let minPain = Infinity;
+  
+  const strikes = [...new Set(dbOptionsData.map(opt => opt.strike_price))].sort((a, b) => a - b);
+  
+  for (const strike of strikes) {
+    let totalPain = 0;
+    
+    for (const option of dbOptionsData) {
+      if (option.strike_price === strike) continue;
+      
+      // Pain from calls (ITM when price > strike)
+      if (currentPrice > option.strike_price) {
+        totalPain += (option.call_oi || 0) * (currentPrice - option.strike_price);
+      }
+      
+      // Pain from puts (ITM when price < strike)  
+      if (currentPrice < option.strike_price) {
+        totalPain += (option.put_oi || 0) * (option.strike_price - currentPrice);
+      }
+    }
+    
+    if (totalPain < minPain) {
+      minPain = totalPain;
+      maxPainStrike = strike;
+    }
+  }
+
+  // Simplified VWIV and gamma exposure calculations
+  const avgCallIv = dbOptionsData.reduce((sum, opt) => sum + (opt.call_iv || 0.3), 0) / dbOptionsData.length;
+  const avgPutIv = dbOptionsData.reduce((sum, opt) => sum + (opt.put_iv || 0.3), 0) / dbOptionsData.length;
+  const vwiv = (avgCallIv + avgPutIv) / 2;
+
+  const gammaExposure = dbOptionsData.reduce((sum, opt) => {
+    const callGamma = (opt.call_gamma || 0.01) * (opt.call_oi || 0) * 100;
+    const putGamma = (opt.put_gamma || 0.01) * (opt.put_oi || 0) * 100;
+    return sum + callGamma - putGamma; // Calls are positive, puts negative
+  }, 0);
+
+  return {
+    pcr: Number(pcr.toFixed(3)),
+    maxPain: maxPainStrike,
+    totalCallOi,
+    totalPutOi, 
+    totalCallVolume,
+    totalPutVolume,
+    vwiv: Number(vwiv.toFixed(3)),
+    gammaExposure: Math.round(gammaExposure)
+  };
+}
+
+// Default tickers to track - DISABLED to prevent wasting API calls
+const DEFAULT_TICKERS: string[] = []; // ['TSLA', 'AAPL', 'AMZN', 'MSFT', 'NVDA', 'GOOGL', 'META', 'NFLX', 'AMD', 'INTC'];
 
 // Collection intervals
 const QUOTE_INTERVAL_MS = 10000; // 10 seconds
@@ -36,7 +124,7 @@ const dailySummaryTimers: Record<string, NodeJS.Timeout> = {};
 
 // Initialize data collection for a ticker
 export function initializeDataCollection(ticker: string): void {
-  console.log(`Initializing data collection for ${ticker}`);
+  logger.info(`Initializing data collection for ${ticker}`, { ticker });
   
   // Cancel existing timers if they exist
   if (quoteTimers[ticker]) clearInterval(quoteTimers[ticker]);
@@ -59,7 +147,7 @@ export function initializeDataCollection(ticker: string): void {
 
 // Stop data collection for a ticker
 export function stopDataCollection(ticker: string): void {
-  console.log(`Stopping data collection for ${ticker}`);
+  logger.info(`Stopping data collection for ${ticker}`, { ticker });
   
   if (quoteTimers[ticker]) {
     clearInterval(quoteTimers[ticker]);
@@ -84,7 +172,7 @@ export function stopDataCollection(ticker: string): void {
 
 // Initialize data collection for default tickers
 export function initializeDefaultCollection(): void {
-  console.log('Initializing data collection for default tickers');
+  logger.info('Initializing data collection for default tickers', { tickers: DEFAULT_TICKERS });
   
   for (const ticker of DEFAULT_TICKERS) {
     initializeDataCollection(ticker);
@@ -94,29 +182,29 @@ export function initializeDefaultCollection(): void {
 // Collect quote data for a ticker
 async function collectQuoteData(ticker: string): Promise<void> {
   try {
-    console.log(`Collecting quote data for ${ticker}`);
+    logger.debug(`Collecting quote data for ${ticker}`, { ticker });
     
-    const quoteData = await getQuote(ticker);
+    const quoteData = await dataProviderFactory.getQuote(ticker);
     if (!quoteData) {
-      console.error(`Failed to get quote data for ${ticker}`);
+      logger.error(`Failed to get quote data for ${ticker}`, { ticker });
       return;
     }
     
     await saveStockData(quoteData);
-    console.log(`Saved quote data for ${ticker}`);
+    logger.debug(`Saved quote data for ${ticker}`, { ticker });
   } catch (error) {
-    console.error(`Error collecting quote data for ${ticker}:`, error);
+    logger.error(`Error collecting quote data for ${ticker}`, { ticker }, error as Error);
   }
 }
 
 // Collect historical data and calculate technical indicators
 async function collectHistoricalData(ticker: string): Promise<void> {
   try {
-    console.log(`Collecting historical data for ${ticker}`);
+    logger.debug(`Collecting historical data for ${ticker}`, { ticker });
     
-    const historicalData = await getHistoricalData(ticker, '3mo', '1d');
+    const historicalData = await dataProviderFactory.getHistoricalData(ticker, '3mo', '1d');
     if (!historicalData) {
-      console.error(`Failed to get historical data for ${ticker}`);
+      logger.error(`Failed to get historical data for ${ticker}`, { ticker });
       return;
     }
     
@@ -169,40 +257,37 @@ async function collectHistoricalData(ticker: string): Promise<void> {
       });
     }
     
-    console.log(`Saved historical data and indicators for ${ticker}`);
+    logger.debug(`Saved historical data and indicators for ${ticker}`, { ticker });
   } catch (error) {
-    console.error(`Error collecting historical data for ${ticker}:`, error);
+    logger.error(`Error collecting historical data for ${ticker}`, { ticker }, error as Error);
   }
 }
 
 // Collect options data for a ticker
 async function collectOptionsData(ticker: string): Promise<void> {
   try {
-    console.log(`Collecting options data for ${ticker}`);
+    logger.debug(`Collecting options data for ${ticker}`);
     
     // Get current stock price
-    const quoteData = await getQuote(ticker);
+    const quoteData = await dataProviderFactory.getQuote(ticker);
     if (!quoteData) {
-      console.error(`Failed to get quote data for ${ticker}`);
+      logger.error(`Failed to get quote data for ${ticker}`, { ticker });
       return;
     }
     
-    // Get options chain
-    const optionsChain = await getOptionsChain(ticker);
+    // Get options chain using data provider factory
+    const optionsChain = await dataProviderFactory.getOptionsChain(ticker);
     if (!optionsChain) {
-      console.error(`Failed to get options chain for ${ticker}`);
+      logger.error(`Failed to get options chain for ${ticker}`, { ticker });
       return;
     }
     
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const currentDate = new Date().toISOString().split('T')[0];
     
-    // Process options metrics
-    const optionsMetrics = calculateOptionsMetrics(
-      optionsChain.calls,
-      optionsChain.puts,
-      quoteData.close
-    );
+    // Calculate metrics from database options data instead of relying on MarketData.app format
+    const dbOptionsData = await getOptionsData(ticker);
+    const optionsMetrics = calculateOptionsMetricsFromDb(dbOptionsData, quoteData.close);
     
     // Get historical IV data (simplified - in production, this would use actual historical IV)
     const historicalIvs = optionsChain.calls
@@ -254,35 +339,35 @@ async function collectOptionsData(ticker: string): Promise<void> {
       });
     }
     
-    console.log(`Saved options data for ${ticker}`);
+    logger.debug(`Saved options data for ${ticker}`);
   } catch (error) {
-    console.error(`Error collecting options data for ${ticker}:`, error);
+    logger.error(`Error collecting options data for ${ticker}`, { ticker }, error as Error);
   }
 }
 
 // Generate daily summary for a ticker
 async function generateDailySummary(ticker: string): Promise<void> {
   try {
-    console.log(`Generating daily summary for ${ticker}`);
+    logger.debug(`Generating daily summary for ${ticker}`);
     
     // Get latest data
-    const quoteData = await getQuote(ticker);
+    const quoteData = await dataProviderFactory.getQuote(ticker);
     if (!quoteData) {
-      console.error(`Failed to get quote data for ${ticker}`);
+      logger.error(`Failed to get quote data for ${ticker}`, { ticker });
       return;
     }
     
-    // Get options chain for max pain
-    const optionsChain = await getOptionsChain(ticker);
+    // Get options chain for max pain using data provider factory
+    const optionsChain = await dataProviderFactory.getOptionsChain(ticker);
     if (!optionsChain) {
-      console.error(`Failed to get options chain for ${ticker}`);
+      logger.error(`Failed to get options chain for ${ticker}`, { ticker });
       return;
     }
     
     // Get historical data for technical indicators
-    const historicalData = await getHistoricalData(ticker, '3mo', '1d');
+    const historicalData = await dataProviderFactory.getHistoricalData(ticker, '3mo', '1d');
     if (!historicalData) {
-      console.error(`Failed to get historical data for ${ticker}`);
+      logger.error(`Failed to get historical data for ${ticker}`, { ticker });
       return;
     }
     
@@ -334,9 +419,9 @@ async function generateDailySummary(ticker: string): Promise<void> {
       max_pain: optionsMetrics.maxPain,
     });
     
-    console.log(`Saved daily summary for ${ticker}`);
+    logger.debug(`Saved daily summary for ${ticker}`);
   } catch (error) {
-    console.error(`Error generating daily summary for ${ticker}:`, error);
+    logger.error(`Error generating daily summary for ${ticker}`, { ticker }, error as Error);
   }
 }
 

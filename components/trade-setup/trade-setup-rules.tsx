@@ -84,41 +84,126 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
   const fetchTickerData = async () => {
     setLoading(true);
     try {
-      const data = await fetchScannerResults({ symbol });
-      if (data.setup) {
+      // First try to get cached data
+      let data = await fetchScannerResults({ symbol });
+      
+      // Scanner API returns either { setup: {...} } for single ticker or { results: [...] } for multiple
+      let setup = null;
+      if (data && data.setup) {
+        // Single ticker response - use the setup directly
+        setup = data.setup;
+      } else if (data && Array.isArray(data.results)) {
+        // Multiple ticker response - find the matching symbol
+        setup = data.results.find((item: any) => item.symbol === symbol);
+      } else if (data && Array.isArray(data)) {
+        // Legacy array format
+        setup = data.find((item: any) => item.symbol === symbol);
+      }
+      
+      // Check if we have valid technical data, if not refresh
+      if (setup && (setup.rsi === 0 || setup.rsi === null || setup.emaTrend === 'Unknown' || !setup.emaTrend)) {
+        console.log(`Technical indicators missing for ${symbol}, refreshing data...`);
+        // Fetch fresh data with refresh flag
+        data = await fetchScannerResults({ symbol, refresh: true });
+        
+        // Extract setup again from refreshed data
+        if (data && data.setup) {
+          setup = data.setup;
+        } else if (data && Array.isArray(data.results)) {
+          setup = data.results.find((item: any) => item.symbol === symbol);
+        } else if (data && Array.isArray(data)) {
+          setup = data.find((item: any) => item.symbol === symbol);
+        }
+      }
+      
+      if (setup) {
+        // Ensure all numeric values are properly converted
+        const safeNumber = (value: any, defaultValue: number = 0): number => {
+          const num = Number(value);
+          return !isNaN(num) && isFinite(num) ? num : defaultValue;
+        };
+        
         // Transform scanner data to match expected format
         setStockData({
-          price: data.setup.price || 0,
-          setupType: data.setup.setupType || 'neutral',
-          emaTrend: data.setup.emaTrend || 'Unknown',
-          pcr: data.setup.pcr || 1.0,
-          rsi: data.setup.rsi || 50,
-          stochasticRsi: data.setup.stochRsi || 50,
-          iv: data.setup.iv || 30,
-          gex: 0, // Not available in scanner data
+          price: safeNumber(setup.price),
+          setupType: setup.setupType || 'neutral',
+          emaTrend: setup.emaTrend || 'Unknown',
+          pcr: safeNumber(setup.pcr, 1.0),
+          rsi: safeNumber(setup.rsi, 50),
+          stochasticRsi: safeNumber(setup.stochRsi || setup.stochasticRsi, 50),
+          iv: safeNumber(setup.iv, 30),
+          gex: safeNumber(setup.gex, 0),
           keyLevels: {
-            support: [data.setup.stopLoss || 0],
-            resistance: [data.setup.targetPrice || 0],
-            maxPain: data.setup.entryPrice || 0
+            support: [safeNumber(setup.stopLoss || setup.entryPrice)],
+            resistance: [safeNumber(setup.targetPrice || setup.entryPrice)],
+            maxPain: safeNumber(setup.entryPrice)
           },
           recommendation: {
-            action: data.setup.setupType === 'bullish' ? 'Buy Call' : data.setup.setupType === 'bearish' ? 'Buy Put' : 'Hold',
-            target: data.setup.targetPrice || 'N/A',
-            stop: data.setup.stopLoss || 'N/A',
+            action: setup.setupType === 'bullish' ? 'Buy Call' : setup.setupType === 'bearish' ? 'Buy Put' : 'Hold',
+            target: safeNumber(setup.targetPrice),
+            stop: safeNumber(setup.stopLoss),
             expiration: '30 DTE',
-            strike: data.setup.entryPrice || 0
+            strike: safeNumber(setup.entryPrice)
           }
         });
         
         // Update custom rules based on setup type
         setCustomRules(prev => ({
           ...prev,
-          positiveGEX: data.setup.setupType === 'bullish'
+          positiveGEX: setup.setupType === 'bullish'
         }));
+      } else {
+        // No data found, set default values to prevent errors
+        setStockData({
+          price: 0,
+          setupType: 'neutral',
+          emaTrend: 'Unknown',
+          pcr: 1.0,
+          rsi: 50,
+          stochasticRsi: 50,
+          iv: 30,
+          gex: 0,
+          keyLevels: {
+            support: [0],
+            resistance: [0],
+            maxPain: 0
+          },
+          recommendation: {
+            action: 'Hold',
+            target: 0,
+            stop: 0,
+            expiration: '30 DTE',
+            strike: 0
+          }
+        });
       }
     } catch (error) {
-      console.error('Error fetching ticker data:', error);
+      console.error('Error fetching ticker data', { symbol }, error as Error);
       toast.error('Failed to fetch ticker data');
+      
+      // Set default values on error to prevent crashes
+      setStockData({
+        price: 0,
+        setupType: 'neutral',
+        emaTrend: 'Unknown',
+        pcr: 1.0,
+        rsi: 50,
+        stochasticRsi: 50,
+        iv: 30,
+        gex: 0,
+        keyLevels: {
+          support: [0],
+          resistance: [0],
+          maxPain: 0
+        },
+        recommendation: {
+          action: 'Hold',
+          target: 0,
+          stop: 0,
+          expiration: '30 DTE',
+          strike: 0
+        }
+      });
     } finally {
       setLoading(false);
     }
@@ -133,31 +218,18 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
   }
 
   if (!stockData) {
-    // Use default mock data if no data is available
-    const defaultData = {
-      price: 100,
-      setupType: 'neutral',
-      emaTrend: 'Unknown',
-      pcr: 1.0,
-      rsi: 50,
-      stochasticRsi: 50,
-      iv: 30,
-      gex: 0,
-      keyLevels: {
-        support: [95, 90],
-        resistance: [105, 110],
-        maxPain: 100
-      },
-      recommendation: {
-        action: 'Hold',
-        target: 'N/A',
-        stop: 'N/A',
-        expiration: '30 DTE',
-        strike: 100
-      }
-    };
-    setStockData(defaultData);
-    return null; // Will re-render with default data
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <TickerSelector 
+            value={selectedTicker}
+            onValueChange={setSelectedTicker}
+            placeholder="Select ticker..."
+          />
+          <p className="text-muted-foreground">Select a ticker to view trade setup rules</p>
+        </div>
+      </div>
+    );
   }
   
   // Evaluate the current stock against rules for each setup type
@@ -168,7 +240,7 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
     stochRsiThreshold: stockData.stochasticRsi > 60,
     priceNearSupport: isPriceNearLevel(stockData.price, stockData.keyLevels.support, 'support'),
     positiveGEX: stockData.gex > 500000,
-    highVanna: true // Placeholder (would be based on actual vanna values)
+    volatilitySkew: stockData.iv > 35 // High IV suggests higher volatility skew
   };
   
   const bearishRulesStatus = {
@@ -178,7 +250,7 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
     stochRsiThreshold: stockData.stochasticRsi < 40,
     priceNearResistance: isPriceNearLevel(stockData.price, stockData.keyLevels.resistance, 'resistance'),
     negativeGEX: stockData.gex < -500000,
-    highVanna: true // Placeholder (would be based on actual vanna values)
+    volatilitySkew: stockData.iv > 35 // High IV suggests higher volatility skew
   };
   
   const neutralRulesStatus = {
@@ -353,17 +425,17 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
               <RuleCheckItem
                 rule={`Put/Call Ratio < ${stockData.iv > 50 ? '0.5' : stockData.iv > 30 ? '0.8' : '0.7'}`}
                 status={rulesStatus.pcrThreshold}
-                description={`Current PCR: ${stockData.pcr.toFixed(2)}`}
+                description={`Current PCR: ${typeof stockData.pcr === 'number' && !isNaN(stockData.pcr) ? stockData.pcr.toFixed(2) : 'N/A'}`}
               />
               <RuleCheckItem
                 rule="RSI between 55-80"
                 status={rulesStatus.rsiRange}
-                description={`Current RSI: ${stockData.rsi.toFixed(0)}`}
+                description={`Current RSI: ${typeof stockData.rsi === 'number' && !isNaN(stockData.rsi) ? stockData.rsi.toFixed(0) : 'N/A'}`}
               />
               <RuleCheckItem
                 rule="Stochastic RSI > 60"
                 status={rulesStatus.stochRsiThreshold}
-                description={`Current Stoch RSI: ${stockData.stochasticRsi.toFixed(0)}`}
+                description={`Current Stoch RSI: ${typeof stockData.stochasticRsi === 'number' && !isNaN(stockData.stochasticRsi) ? stockData.stochasticRsi.toFixed(0) : 'N/A'}`}
               />
               <RuleCheckItem
                 rule="Price near support"
@@ -388,17 +460,17 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
               <RuleCheckItem
                 rule={`Put/Call Ratio > ${stockData.iv > 50 ? '1.5' : stockData.iv > 30 ? '1.2' : '1.3'}`}
                 status={rulesStatus.pcrThreshold}
-                description={`Current PCR: ${stockData.pcr.toFixed(2)}`}
+                description={`Current PCR: ${typeof stockData.pcr === 'number' && !isNaN(stockData.pcr) ? stockData.pcr.toFixed(2) : 'N/A'}`}
               />
               <RuleCheckItem
                 rule="RSI between 20-45"
                 status={rulesStatus.rsiRange}
-                description={`Current RSI: ${stockData.rsi.toFixed(0)}`}
+                description={`Current RSI: ${typeof stockData.rsi === 'number' && !isNaN(stockData.rsi) ? stockData.rsi.toFixed(0) : 'N/A'}`}
               />
               <RuleCheckItem
                 rule="Stochastic RSI < 40"
                 status={rulesStatus.stochRsiThreshold}
-                description={`Current Stoch RSI: ${stockData.stochasticRsi.toFixed(0)}`}
+                description={`Current Stoch RSI: ${typeof stockData.stochasticRsi === 'number' && !isNaN(stockData.stochasticRsi) ? stockData.stochasticRsi.toFixed(0) : 'N/A'}`}
               />
               <RuleCheckItem
                 rule="Price near resistance"
@@ -423,22 +495,22 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
               <RuleCheckItem
                 rule="Put/Call Ratio 0.8-1.2"
                 status={rulesStatus.pcrThreshold}
-                description={`Current PCR: ${stockData.pcr.toFixed(2)}`}
+                description={`Current PCR: ${typeof stockData.pcr === 'number' && !isNaN(stockData.pcr) ? stockData.pcr.toFixed(2) : 'N/A'}`}
               />
               <RuleCheckItem
                 rule="Low IV (< 40%)"
                 status={rulesStatus.lowIV}
-                description={`Current IV: ${stockData.iv.toFixed(0)}%`}
+                description={`Current IV: ${typeof stockData.iv === 'number' && !isNaN(stockData.iv) ? stockData.iv.toFixed(0) : 'N/A'}%`}
               />
               <RuleCheckItem
                 rule="RSI between 45-65"
                 status={rulesStatus.rsiRange}
-                description={`Current RSI: ${stockData.rsi.toFixed(0)}`}
+                description={`Current RSI: ${typeof stockData.rsi === 'number' && !isNaN(stockData.rsi) ? stockData.rsi.toFixed(0) : 'N/A'}`}
               />
               <RuleCheckItem
                 rule="Stochastic RSI 25-75"
                 status={rulesStatus.stochRsiRange}
-                description={`Current Stoch RSI: ${stockData.stochasticRsi.toFixed(0)}`}
+                description={`Current Stoch RSI: ${typeof stockData.stochasticRsi === 'number' && !isNaN(stockData.stochasticRsi) ? stockData.stochasticRsi.toFixed(0) : 'N/A'}`}
               />
               <RuleCheckItem
                 rule="Price near max pain"
@@ -494,7 +566,7 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
             <h2 className="text-3xl font-bold flex items-center gap-2">
               {symbol}
               <Badge variant="outline" className="text-lg">
-                ${stockData?.price?.toFixed(2) || 'N/A'}
+                ${typeof stockData?.price === 'number' && !isNaN(stockData.price) ? stockData.price.toFixed(2) : 'N/A'}
               </Badge>
             </h2>
             <p className="text-muted-foreground mt-1">
@@ -556,11 +628,11 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Put/Call Ratio</div>
-              <div className="font-semibold">{stockData.pcr.toFixed(2)}</div>
+              <div className="font-semibold">{typeof stockData.pcr === 'number' && !isNaN(stockData.pcr) ? stockData.pcr.toFixed(2) : 'N/A'}</div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground">RSI</div>
-              <div className="font-semibold">{stockData.rsi.toFixed(0)}</div>
+              <div className="font-semibold">{typeof stockData.rsi === 'number' && !isNaN(stockData.rsi) ? stockData.rsi.toFixed(0) : 'N/A'}</div>
             </div>
           </div>
           
@@ -580,17 +652,17 @@ export function TradeSetupRules({ symbol: propSymbol, ticker: propTicker, stockD
               <div>
                 <span className="text-muted-foreground">Target: </span>
                 <span className="font-medium">
-                  {typeof stockData.recommendation.target === 'number' 
+                  {typeof stockData.recommendation.target === 'number' && !isNaN(stockData.recommendation.target)
                     ? `$${stockData.recommendation.target.toFixed(2)}`
-                    : stockData.recommendation.target}
+                    : stockData.recommendation.target || 'N/A'}
                 </span>
               </div>
               <div>
                 <span className="text-muted-foreground">Stop Loss: </span>
                 <span className="font-medium">
-                  {typeof stockData.recommendation.stop === 'number'
+                  {typeof stockData.recommendation.stop === 'number' && !isNaN(stockData.recommendation.stop)
                     ? `$${stockData.recommendation.stop.toFixed(2)}`
-                    : stockData.recommendation.stop}
+                    : stockData.recommendation.stop || 'N/A'}
                 </span>
               </div>
               <div>

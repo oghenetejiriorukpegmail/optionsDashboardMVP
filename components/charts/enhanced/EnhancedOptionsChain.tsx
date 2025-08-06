@@ -77,6 +77,8 @@ interface EnhancedOptionsChainProps {
   className?: string;
   onStrikeClick?: (strike: Strike) => void;
   showAnimation?: boolean;
+  dataSource?: string;
+  dataLatency?: number;
 }
 
 export default function EnhancedOptionsChain({
@@ -90,6 +92,8 @@ export default function EnhancedOptionsChain({
   className,
   onStrikeClick,
   showAnimation = true,
+  dataSource = 'Yahoo Finance',
+  dataLatency,
 }: EnhancedOptionsChainProps) {
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
   const [chartInstance, setChartInstance] = useState<ChartJS<"bar"> | null>(null);
@@ -744,6 +748,24 @@ export default function EnhancedOptionsChain({
           </div>
         </div>
       )}
+      
+      {/* Data source disclaimer */}
+      <div className="mt-4 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+          <div className="flex items-center gap-2">
+            <Info size={12} />
+            <span>
+              Data provided by {dataSource}
+              {dataLatency && ` • Latency: ${dataLatency}ms`}
+            </span>
+          </div>
+          <span>
+            {dataSource === 'Yahoo Finance' 
+              ? 'Data delayed ~15 min, not for trading' 
+              : 'For informational purposes only'}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

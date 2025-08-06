@@ -5,6 +5,9 @@ import {
   getStockData
 } from '@/lib/db/repository';
 import { CORE_MARKET_INDEXES, MARKET_THRESHOLDS } from '@/lib/config/market-indexes';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Market Context API');
 
 interface MarketIndexData {
   symbol: string;
@@ -48,7 +51,7 @@ export async function GET(request: Request) {
         const technicalData = await getLatestTechnicalIndicators(symbol);
         
         if (!stockData) {
-          console.log(`No data found for index ${symbol}`);
+          logger.debug(`No data found for index ${symbol}`);
           continue;
         }
         
@@ -92,7 +95,7 @@ export async function GET(request: Request) {
           indexes.push(indexData);
         }
       } catch (error) {
-        console.error(`Error fetching data for ${symbol}:`, error);
+        logger.error(`Error fetching data for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
       }
     }
     
@@ -150,7 +153,7 @@ export async function GET(request: Request) {
     
     return NextResponse.json(marketContext);
   } catch (error) {
-    console.error('Error fetching market context:', error);
+    logger.error('Error fetching market context:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { 
         error: 'Failed to fetch market context',

@@ -1,15 +1,37 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React from "react";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartOptions,
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 interface DataPoint {
   date: string;
   close: number;
-  ema10: number;
-  ema20: number;
-  ema50: number;
+  ema10: number | null;
+  ema20: number | null;
+  ema50: number | null;
   volume: number;
-  rsi: number;
+  rsi: number | null;
 }
 
 interface TechnicalChartProps {
@@ -27,102 +49,166 @@ const TechnicalChart: React.FC<TechnicalChartProps> = ({
   showVolume = true,
   showRSI = false,
 }) => {
-  const chartRef = useRef<HTMLCanvasElement>(null);
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 bg-gray-50 rounded-md">
+        <p className="text-gray-500">No data available for chart</p>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    if (!chartRef.current || !data || data.length === 0) return;
+  // Prepare data for Chart.js
+  const labels = data.map(point => {
+    const date = new Date(point.date);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
 
-    // This is a placeholder for real chart implementation
-    // In a production app, you would use a library like Chart.js or d3.js
-    const ctx = chartRef.current.getContext("2d");
-    if (!ctx) return;
+  const chartData = {
+    labels,
+    datasets: [
+      {
+        label: 'Price',
+        data: data.map(point => point.close),
+        borderColor: '#0f172a',
+        backgroundColor: 'rgba(15, 23, 42, 0.1)',
+        borderWidth: 2,
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        tension: 0.1,
+      },
+      {
+        label: '10 EMA',
+        data: data.map(point => point.ema10),
+        borderColor: '#ef4444',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderWidth: 1.5,
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 3,
+        tension: 0.1,
+        spanGaps: true,
+      },
+      {
+        label: '20 EMA',
+        data: data.map(point => point.ema20),
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderWidth: 1.5,
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 3,
+        tension: 0.1,
+        spanGaps: true,
+      },
+      {
+        label: '50 EMA',
+        data: data.map(point => point.ema50),
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        borderWidth: 1.5,
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 3,
+        tension: 0.1,
+        spanGaps: true,
+      },
+    ],
+  };
 
-    // Clear the canvas
-    ctx.clearRect(0, 0, width, height);
-
-    // Set background
-    ctx.fillStyle = "#f8fafc"; // light background
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw a simple line for demonstration (this is just a placeholder)
-    ctx.beginPath();
-    ctx.strokeStyle = "#0f172a";
-    ctx.lineWidth = 2;
-
-    // Calculate max and min for scaling
-    const priceValues = data.map(point => point.close);
-    const maxPrice = Math.max(...priceValues) * 1.05; // Add 5% padding
-    const minPrice = Math.min(...priceValues) * 0.95; // Subtract 5% padding
-    const priceRange = maxPrice - minPrice;
-
-    // Draw price line
-    data.forEach((point, i) => {
-      const x = (i / (data.length - 1)) * width;
-      const y = height - ((point.close - minPrice) / priceRange) * height * 0.7;
-      
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
-    ctx.stroke();
-
-    // Draw EMA lines
-    const drawEMALine = (emaKey: 'ema10' | 'ema20' | 'ema50', color: string) => {
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-
-      data.forEach((point, i) => {
-        const x = (i / (data.length - 1)) * width;
-        const y = height - ((point[emaKey] - minPrice) / priceRange) * height * 0.7;
-        
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-      ctx.stroke();
-    };
-
-    drawEMALine('ema10', '#ef4444'); // red for 10 EMA
-    drawEMALine('ema20', '#3b82f6'); // blue for 20 EMA
-    drawEMALine('ema50', '#10b981'); // green for 50 EMA
-
-    // Add legend
-    ctx.font = "12px Arial";
-    ctx.fillStyle = "#0f172a";
-    ctx.fillText("Price", 10, 20);
-    
-    ctx.fillStyle = "#ef4444";
-    ctx.fillText("10 EMA", 10, 40);
-    
-    ctx.fillStyle = "#3b82f6";
-    ctx.fillText("20 EMA", 10, 60);
-    
-    ctx.fillStyle = "#10b981";
-    ctx.fillText("50 EMA", 10, 80);
-
-    // Note: In a real implementation, you would also draw:
-    // - Volume bars at the bottom
-    // - RSI in a separate panel if showRSI is true
-    // - Proper scales, grid lines, tooltips, etc.
-    
-  }, [data, width, height, showVolume, showRSI]);
+  const options: ChartOptions<'line'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+        align: 'start' as const,
+        labels: {
+          usePointStyle: true,
+          pointStyle: 'line',
+          padding: 20,
+        },
+      },
+      title: {
+        display: false,
+      },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+        callbacks: {
+          label: function(context) {
+            const label = context.dataset.label || '';
+            const value = context.parsed.y;
+            if (value === null || value === undefined) {
+              return `${label}: N/A`;
+            }
+            return `${label}: $${value.toFixed(2)}`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        display: true,
+        title: {
+          display: true,
+          text: 'Date',
+        },
+        grid: {
+          display: true,
+          color: 'rgba(0, 0, 0, 0.1)',
+        },
+      },
+      y: {
+        display: true,
+        title: {
+          display: true,
+          text: 'Price ($)',
+        },
+        grid: {
+          display: true,
+          color: 'rgba(0, 0, 0, 0.1)',
+        },
+        ticks: {
+          callback: function(value) {
+            if (typeof value === 'number') {
+              return '$' + value.toFixed(2);
+            }
+            return value;
+          },
+        },
+      },
+    },
+    interaction: {
+      mode: 'nearest',
+      axis: 'x',
+      intersect: false,
+    },
+    elements: {
+      point: {
+        radius: 0,
+        hoverRadius: 4,
+      },
+    },
+  };
 
   return (
-    <div className="relative">
-      <canvas 
-        ref={chartRef} 
-        width={width} 
-        height={height}
-        className="w-full h-auto rounded-md"
-      />
-      <div className="text-xs text-muted-foreground mt-2 text-center">
-        Note: This is a placeholder chart. In production, use Chart.js or another charting library for advanced visualizations.
-      </div>
+    <div className="relative" style={{ width: width || '100%', height: height }}>
+      <Line data={chartData} options={options} />
+      {showRSI && (
+        <div className="mt-4 p-2 bg-gray-50 rounded">
+          <p className="text-sm text-gray-600">
+            RSI indicator would be displayed here in a separate chart panel
+          </p>
+        </div>
+      )}
+      {showVolume && (
+        <div className="mt-2 p-2 bg-gray-50 rounded">
+          <p className="text-sm text-gray-600">
+            Volume bars would be displayed here below the price chart
+          </p>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { manuallyCollectData } from '@/lib/services/dataCollector';
 import { ALL_MARKET_INDEXES, CORE_MARKET_INDEXES, SECTOR_INDEXES } from '@/lib/config/market-indexes';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('CollectMarketIndexesAPI');
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,8 +26,8 @@ export async function POST(request: NextRequest) {
         indexesToCollect = CORE_MARKET_INDEXES;
     }
     
-    console.log(`Starting market index data collection for ${indexesToCollect.length} indexes (${type})`);
-    console.log(`Processing in batches of ${batchSize} with delays to respect rate limits`);
+    logger.debug(`Starting market index data collection for ${indexesToCollect.length} indexes (${type})`);
+    logger.debug(`Processing in batches of ${batchSize} with delays to respect rate limits`);
     
     const results = [];
     const errors = [];
@@ -32,12 +35,12 @@ export async function POST(request: NextRequest) {
     // Process indexes in batches
     for (let i = 0; i < indexesToCollect.length; i += batchSize) {
       const batch = indexesToCollect.slice(i, i + batchSize);
-      console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.join(', ')}`);
+      logger.debug(`Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.join(', ')}`);
       
       // Process each symbol in the current batch
       for (const symbol of batch) {
         try {
-          console.log(`Collecting data for index ${symbol}...`);
+          logger.debug(`Collecting data for index ${symbol}...`);
           await manuallyCollectData(symbol);
           results.push({
             symbol,
@@ -47,11 +50,11 @@ export async function POST(request: NextRequest) {
           
           // Add delay between requests within a batch (3 seconds)
           if (batch.indexOf(symbol) < batch.length - 1) {
-            console.log('Waiting 3 seconds before next request...');
+            logger.debug('Waiting 3 seconds before next request...');
             await new Promise(resolve => setTimeout(resolve, 3000));
           }
         } catch (error) {
-          console.error(`Failed to collect data for ${symbol}:`, error);
+          logger.error(`Failed to collect data for ${symbol}:`, { symbol }, error instanceof Error ? error : new Error(String(error)));
           errors.push({
             symbol,
             status: 'error',
@@ -62,7 +65,7 @@ export async function POST(request: NextRequest) {
       
       // Add longer delay between batches (15 seconds) to ensure we don't hit rate limits
       if (i + batchSize < indexesToCollect.length) {
-        console.log('Waiting 15 seconds before next batch...');
+        logger.debug('Waiting 15 seconds before next batch...');
         await new Promise(resolve => setTimeout(resolve, 15000));
       }
     }
@@ -79,7 +82,7 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error in collect-market-indexes API:', error);
+    logger.error('Error in collect-market-indexes API:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { 
         error: true, 

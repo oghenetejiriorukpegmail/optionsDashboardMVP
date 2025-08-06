@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Risk Reward Analysis API');
 
 interface RiskRewardRequest {
   entryPrice: number;
@@ -260,7 +263,7 @@ export async function POST(request: Request) {
     });
     
   } catch (error) {
-    console.error('Error calculating risk-reward analysis:', error);
+    logger.error('Error calculating risk-reward analysis:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json({ 
       error: true, 
       message: 'Failed to calculate risk-reward analysis',

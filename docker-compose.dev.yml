@@ -1,0 +1,22 @@
+version: '3.8'
+
+# Development overrides for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  app:
+    build:
+      target: builder  # Stop at builder stage for development
+    command: npm run dev
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - .:/app
+      - /app/node_modules  # Prevent overwriting node_modules
+      - app_data:/app/data
+    ports:
+      - "4000:4000"
+      - "9229:9229"  # Debug port
+
+  adminer:
+    profiles: []  # Always start adminer in development

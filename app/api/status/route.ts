@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getCacheStats } from '@/lib/services/enhancedYahooFinance';
 import { getCollectionStatus } from '@/lib/services/enhancedDataCollector';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Status API');
 
 /**
  * GET /api/status - Returns status information about the data collection and caching
@@ -37,7 +40,7 @@ export async function GET(request: Request) {
       }
     });
   } catch (error) {
-    console.error('Error getting status:', error);
+    logger.error('Error getting status:', {}, error instanceof Error ? error : new Error(String(error)));
     
     return NextResponse.json(
       { 
@@ -79,7 +82,7 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   } catch (error) {
-    console.error('Error processing status action:', error);
+    logger.error('Error processing status action:', {}, error instanceof Error ? error : new Error(String(error)));
     
     return NextResponse.json(
       { 

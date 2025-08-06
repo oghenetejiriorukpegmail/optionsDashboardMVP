@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Stop Loss Strategy API');
 
 interface StopLossRequest {
   entryPrice: number;
@@ -233,7 +236,7 @@ export async function POST(request: Request) {
     });
     
   } catch (error) {
-    console.error('Error calculating stop loss strategy:', error);
+    logger.error('Error calculating stop loss strategy:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json({ 
       error: true, 
       message: 'Failed to calculate stop loss strategy',

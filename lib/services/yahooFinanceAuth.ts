@@ -1,5 +1,8 @@
 import axios, { AxiosInstance } from 'axios';
 import { SCANNER_CONFIG } from '@/lib/config';
+import { createContextLogger } from '../utils/logger';
+
+const logger = createContextLogger('YahooFinanceAuth');
 
 // Cache for cookie and crumb
 let authCache: {
@@ -86,15 +89,15 @@ export async function getYahooFinanceAuth(): Promise<{ cookie: string; crumb: st
         timestamp: Date.now(),
       };
 
-      console.log('Successfully obtained Yahoo Finance authentication');
+      logger.debug('Successfully obtained Yahoo Finance authentication');
       return { cookie: cookieString, crumb: crumb };
     } catch (error: any) {
       attempts++;
-      console.error(`Error getting Yahoo Finance auth (attempt ${attempts}/${maxAttempts}):`, error.message);
+      logger.error(`Error getting Yahoo Finance auth (attempt ${attempts}/${maxAttempts}):`, error.message);
 
       if (attempts < maxAttempts) {
         const backoffTime = Math.min(1000 * Math.pow(2, attempts), 10000);
-        console.log(`Backing off for ${backoffTime}ms before retry`);
+        logger.debug(`Backing off for ${backoffTime}ms before retry`);
         await delay(backoffTime);
       }
     }
@@ -131,12 +134,12 @@ export async function makeAuthenticatedRequest<T>(url: string, params?: any): Pr
       attempts++;
       const status = error.response?.status;
       
-      console.error(`Error fetching from Yahoo Finance API (attempt ${attempts}/${maxAttempts}):`, 
+      logger.error(`Error fetching from Yahoo Finance API (attempt ${attempts}/${maxAttempts}):`, 
         status ? `Status ${status}` : error.message);
 
       // If we get 401, invalidate auth cache and retry
       if (status === 401) {
-        console.log('Got 401, invalidating auth cache');
+        logger.debug('Got 401, invalidating auth cache');
         authCache = null;
         // Get new auth on next attempt
       }
@@ -146,7 +149,7 @@ export async function makeAuthenticatedRequest<T>(url: string, params?: any): Pr
           ? Math.min(retryDelay * Math.pow(2, attempts), 30000)
           : retryDelay;
         
-        console.log(`Backing off for ${backoffTime}ms before retry`);
+        logger.debug(`Backing off for ${backoffTime}ms before retry`);
         await delay(backoffTime);
       }
     }
@@ -160,5 +163,5 @@ export async function makeAuthenticatedRequest<T>(url: string, params?: any): Pr
  */
 export function clearAuthCache(): void {
   authCache = null;
-  console.log('Yahoo Finance auth cache cleared');
+  logger.debug('Yahoo Finance auth cache cleared');
 }

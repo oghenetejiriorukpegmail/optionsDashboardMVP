@@ -1,5 +1,8 @@
 import axios from 'axios';
 import { alphaVantageRateLimiter, globalRateLimiter } from '@/lib/utils/rateLimiter';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('AlphaVantageClient');
 
 // API key should be stored in environment variables in production
 const API_KEY = process.env.ALPHA_VANTAGE_API_KEY || '';
@@ -24,7 +27,7 @@ export async function callAlphaVantageApi(params: any) {
   const cached = cache[cacheKey];
   
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    console.log('Alpha Vantage returning cached data for:', params.function);
+    logger.debug('Alpha Vantage returning cached data for:', params.function);
     return cached.data;
   }
 
@@ -33,7 +36,7 @@ export async function callAlphaVantageApi(params: any) {
   await globalRateLimiter.waitIfNeeded();
 
   try {
-    console.log('Alpha Vantage API request:', params.function, params.symbol);
+    logger.debug('Alpha Vantage API request:', { function: params.function, symbol: params.symbol });
     
     const response = await axios.get(BASE_URL, {
       params: {
@@ -48,7 +51,7 @@ export async function callAlphaVantageApi(params: any) {
     }
     
     if (response.data && typeof response.data === 'object' && response.data['Note']) {
-      console.warn('Alpha Vantage API Note:', response.data['Note']);
+      logger.warn('Alpha Vantage API Note:', response.data['Note']);
     }
     
     // Cache the successful response
@@ -59,7 +62,7 @@ export async function callAlphaVantageApi(params: any) {
     
     return response.data;
   } catch (error) {
-    console.error('Alpha Vantage API request failed:', error);
+    logger.error('Alpha Vantage API request failed:', {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }

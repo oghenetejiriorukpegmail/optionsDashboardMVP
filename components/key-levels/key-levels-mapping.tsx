@@ -90,12 +90,12 @@ export function KeyLevelsMapping({ symbol: propSymbol, ticker: propTicker, curre
       }
     } catch (error) {
       console.error('Error fetching ticker data:', error);
-      // Use default values
-      setCurrentPrice(100);
+      // Set error state if no data available
+      setCurrentPrice(0);
       setKeyLevels({
-        support: [95, 90],
-        resistance: [105, 110],
-        maxPain: 100
+        support: [],
+        resistance: [],
+        maxPain: 0
       });
     }
   };
@@ -126,18 +126,21 @@ export function KeyLevelsMapping({ symbol: propSymbol, ticker: propTicker, curre
           
           // Fetch options chain for selected expiration
           const optionsChain = await fetchOptionsChain(symbol, initialExpiration);
-          setOptionsData(optionsChain);
+          
+          // Transform the API response to match component expectations
+          if (optionsChain && (optionsChain.calls || optionsChain.puts)) {
+            const transformedData = transformOptionsChainData(optionsChain);
+            setOptionsData(transformedData);
+          } else {
+            setOptionsData(optionsChain);
+          }
         }
       } catch (error) {
         console.error("Error fetching options chain:", error);
-        // Use mock data for demonstration
-        const mockData: OptionsChainData = {
-          expiration: "2025-06-20",
-          strikes: generateMockStrikes(currentPrice)
-        };
-        setOptionsData(mockData);
-        setExpirationDates(["2025-06-20", "2025-07-18", "2025-08-15"]);
-        setSelectedExpiration("2025-06-20");
+        // Set error state if no data available
+        setOptionsData(null);
+        setExpirationDates([]);
+        setSelectedExpiration("");
       } finally {
         setLoading(false);
       }
@@ -148,32 +151,49 @@ export function KeyLevelsMapping({ symbol: propSymbol, ticker: propTicker, curre
     }
   }, [symbol, currentPrice]);
 
-  // Generate mock strikes data for demonstration
-  function generateMockStrikes(price: number): StrikeData[] {
-    const strikes: StrikeData[] = [];
-    const basePrice = Math.round(price / 5) * 5;
+
+  // Transform options chain data from API format to component format
+  const transformOptionsChainData = (apiData: any): OptionsChainData => {
+    if (!apiData || (!apiData.calls && !apiData.puts)) {
+      return { expiration: '', strikes: [] };
+    }
+
+    // Get all unique strikes from both calls and puts
+    const allStrikes = new Set<number>();
     
-    for (let i = -10; i <= 10; i++) {
-      const strike = basePrice + (i * 5);
-      const distance = Math.abs(strike - price);
-      const isATM = distance < 2.5;
-      
-      strikes.push({
-        strike,
-        callOpenInterest: isATM ? 15000 + Math.random() * 10000 : 
-                          Math.max(0, 10000 - distance * 200) + Math.random() * 5000,
-        putOpenInterest: isATM ? 12000 + Math.random() * 8000 :
-                         Math.max(0, 8000 - distance * 150) + Math.random() * 4000,
-        callVolume: Math.random() * 5000,
-        putVolume: Math.random() * 4000,
-        gamma: isATM ? 0.05 + Math.random() * 0.03 : 0.01 + Math.random() * 0.02,
-        vanna: Math.random() * 0.02 - 0.01,
-        charm: Math.random() * 0.01 - 0.005,
-      });
+    if (apiData.calls) {
+      apiData.calls.forEach((call: any) => allStrikes.add(call.strike));
     }
     
-    return strikes;
-  }
+    if (apiData.puts) {
+      apiData.puts.forEach((put: any) => allStrikes.add(put.strike));
+    }
+
+    const strikes = Array.from(allStrikes).sort((a, b) => a - b);
+    
+    // Create strike data by combining calls and puts for each strike
+    const strikeData: StrikeData[] = strikes.map(strike => {
+      const call = apiData.calls?.find((c: any) => c.strike === strike);
+      const put = apiData.puts?.find((p: any) => p.strike === strike);
+      
+      return {
+        strike,
+        callOpenInterest: call?.openInterest || 0,
+        putOpenInterest: put?.openInterest || 0,
+        callVolume: call?.volume || 0,
+        putVolume: put?.volume || 0,
+        gamma: call?.gamma || put?.gamma || 0,
+        vanna: call?.vanna || put?.vanna || 0,
+        charm: call?.charm || put?.charm || 0,
+        vomma: call?.vomma || put?.vomma || 0,
+      };
+    });
+
+    return {
+      expiration: apiData.expiration || '',
+      strikes: strikeData
+    };
+  };
 
   const handleExpirationChange = async (newExpiration: string) => {
     setSelectedExpiration(newExpiration);
@@ -181,15 +201,18 @@ export function KeyLevelsMapping({ symbol: propSymbol, ticker: propTicker, curre
     
     try {
       const optionsChain = await fetchOptionsChain(symbol, newExpiration);
-      setOptionsData(optionsChain);
+      
+      // Transform the API response to match component expectations
+      if (optionsChain && (optionsChain.calls || optionsChain.puts)) {
+        const transformedData = transformOptionsChainData(optionsChain);
+        setOptionsData(transformedData);
+      } else {
+        setOptionsData(optionsChain);
+      }
     } catch (error) {
       console.error("Error fetching options chain:", error);
-      // Use mock data for new expiration
-      const mockData: OptionsChainData = {
-        expiration: newExpiration,
-        strikes: generateMockStrikes(currentPrice)
-      };
-      setOptionsData(mockData);
+      // Set error state if no data available
+      setOptionsData(null);
     } finally {
       setLoading(false);
     }
@@ -270,25 +293,51 @@ export function KeyLevelsMapping({ symbol: propSymbol, ticker: propTicker, curre
   const volumePCR = calculateVolumePCR();
 
   // Prepare chart data
-  const chartData = {
-    labels: optionsData ? optionsData.strikes.map(s => s.strike.toString()) : [],
-    datasets: [
-      {
-        label: 'Call Open Interest',
-        data: optionsData ? optionsData.strikes.map(s => s.callOpenInterest) : [],
-        backgroundColor: 'rgba(34, 197, 94, 0.5)',
-        borderColor: 'rgba(34, 197, 94, 1)',
-        borderWidth: 1,
-      },
-      {
-        label: 'Put Open Interest',
-        data: optionsData ? optionsData.strikes.map(s => -s.putOpenInterest) : [],
-        backgroundColor: 'rgba(239, 68, 68, 0.5)',
-        borderColor: 'rgba(239, 68, 68, 1)',
-        borderWidth: 1,
-      },
-    ],
+  const prepareChartData = () => {
+    if (!optionsData || !optionsData.strikes || optionsData.strikes.length === 0) {
+      return {
+        labels: ['No Data'],
+        datasets: [
+          {
+            label: 'Call Open Interest',
+            data: [0],
+            backgroundColor: 'rgba(34, 197, 94, 0.5)',
+            borderColor: 'rgba(34, 197, 94, 1)',
+            borderWidth: 1,
+          },
+          {
+            label: 'Put Open Interest',
+            data: [0],
+            backgroundColor: 'rgba(239, 68, 68, 0.5)',
+            borderColor: 'rgba(239, 68, 68, 1)',
+            borderWidth: 1,
+          },
+        ],
+      };
+    }
+
+    return {
+      labels: optionsData.strikes.map(s => s.strike.toString()),
+      datasets: [
+        {
+          label: 'Call Open Interest',
+          data: optionsData.strikes.map(s => s.callOpenInterest || 0),
+          backgroundColor: 'rgba(34, 197, 94, 0.5)',
+          borderColor: 'rgba(34, 197, 94, 1)',
+          borderWidth: 1,
+        },
+        {
+          label: 'Put Open Interest',
+          data: optionsData.strikes.map(s => -(s.putOpenInterest || 0)),
+          backgroundColor: 'rgba(239, 68, 68, 0.5)',
+          borderColor: 'rgba(239, 68, 68, 1)',
+          borderWidth: 1,
+        },
+      ],
+    };
   };
+
+  const chartData = prepareChartData();
 
   const chartOptions = {
     responsive: true,
@@ -566,12 +615,21 @@ export function KeyLevelsMapping({ symbol: propSymbol, ticker: propTicker, curre
               <AlertCircle className="h-4 w-4 text-blue-500" />
               <span className="font-semibold text-sm">Key Observations</span>
             </div>
-            <ul className="text-sm space-y-1">
-              <li>• Highest call OI at ${highOIStrikes[0]} (potential resistance)</li>
-              <li>• Highest put OI provides support levels</li>
-              <li>• Max pain at ${calculatedMaxPain.toFixed(2)} suggests price target</li>
-              <li>• PCR of {oiPCR.toFixed(2)} indicates {oiPCR > 1.2 ? 'bearish' : oiPCR < 0.8 ? 'bullish' : 'neutral'} sentiment</li>
-            </ul>
+            {optionsData && optionsData.strikes && optionsData.strikes.length > 0 ? (
+              <ul className="text-sm space-y-1">
+                <li>• Highest call OI at ${highOIStrikes[0] || 'N/A'} (potential resistance)</li>
+                <li>• Highest put OI provides support levels</li>
+                <li>• Max pain at ${calculatedMaxPain.toFixed(2)} suggests price target</li>
+                <li>• PCR of {oiPCR.toFixed(2)} indicates {oiPCR > 1.2 ? 'bearish' : oiPCR < 0.8 ? 'bullish' : 'neutral'} sentiment</li>
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No options data available. This could be due to:
+                <br />• Market is closed
+                <br />• No options trading for this symbol
+                <br />• Data provider connectivity issues
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

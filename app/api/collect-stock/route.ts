@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { manuallyCollectData } from '@/lib/services/dataCollector';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Collect Stock API');
 
 /**
  * POST /api/collect-stock - Collects data for a specific stock
@@ -18,7 +21,7 @@ export async function POST(request: Request) {
       );
     }
     
-    console.log(`Starting data collection for ${symbol}`);
+    logger.debug(`Starting data collection for ${symbol}`);
     
     // Collect data for the specified stock
     await manuallyCollectData(symbol);
@@ -30,7 +33,7 @@ export async function POST(request: Request) {
     });
     
   } catch (error) {
-    console.error('Error collecting stock data:', error);
+    logger.error('Error collecting stock data:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { 
         error: 'Failed to collect stock data', 

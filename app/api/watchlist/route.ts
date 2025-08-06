@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('WatchlistAPI');
 import { 
   getWatchlist, 
   addToWatchlist, 
@@ -32,7 +35,7 @@ export async function GET() {
     
     return NextResponse.json(updatedWatchlist);
   } catch (error) {
-    console.error('Error fetching watchlist:', error);
+    logger.error('Error fetching watchlist:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { error: 'Failed to fetch watchlist' },
       { status: 500 }
@@ -76,7 +79,7 @@ export async function POST(request: Request) {
       );
     }
   } catch (error) {
-    console.error('Error in watchlist POST:', error);
+    logger.error('Error in watchlist POST:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { success: false, message: 'Failed to add to watchlist' },
       { status: 500 }

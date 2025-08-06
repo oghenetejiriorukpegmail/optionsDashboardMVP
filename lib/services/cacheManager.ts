@@ -1,4 +1,7 @@
 import { SCANNER_CONFIG } from '@/lib/config';
+import { createContextLogger } from '../utils/logger';
+
+const logger = createContextLogger('CacheManager');
 
 // Cache types 
 type CacheEntry<T> = {
@@ -222,7 +225,7 @@ class CacheManager {
       const data = await fetchFn();
       this.set(key, data, options);
     } catch (error) {
-      console.error(`Background fetch failed for key ${key}:`, error);
+      logger.error(`Background fetch failed for key ${key}:`, {}, error instanceof Error ? error : new Error(String(error)));
       // Don't throw - this is a background refresh
     }
   }

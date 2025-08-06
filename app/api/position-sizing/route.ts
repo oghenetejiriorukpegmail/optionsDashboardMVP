@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Position Sizing API');
 
 export async function POST(request: Request) {
   try {
@@ -70,7 +73,7 @@ export async function POST(request: Request) {
                     'No IV adjustment'
     });
   } catch (error) {
-    console.error('Error calculating position size:', error);
+    logger.error('Error calculating position size:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json({ 
       error: true, 
       message: 'Failed to calculate position size',

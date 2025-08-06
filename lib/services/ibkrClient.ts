@@ -5,6 +5,10 @@
  * Requires Client Portal Gateway to be running locally
  */
 
+import { createContextLogger } from '../utils/logger';
+
+const logger = createContextLogger('IBKRClient');
+
 // IBKR Client Portal Gateway default URL
 const IBKR_BASE_URL = process.env.IBKR_GATEWAY_URL || 'https://localhost:5000';
 const IBKR_ACCOUNT = process.env.IBKR_ACCOUNT_ID || '';
@@ -88,7 +92,7 @@ class IBKRClientService {
       
       // If not authenticated, we need to authenticate
       if (!data.authenticated) {
-        console.log('IBKR session not authenticated. Please log in through the Client Portal Gateway.');
+        logger.debug('IBKR session not authenticated. Please log in through the Client Portal Gateway.');
         return false;
       }
 
@@ -97,7 +101,7 @@ class IBKRClientService {
       
       return true;
     } catch (error) {
-      console.error('Failed to initialize IBKR session:', error);
+      logger.error('Failed to initialize IBKR session:', {}, error instanceof Error ? error : new Error(String(error)));
       return false;
     }
   }
@@ -112,7 +116,7 @@ class IBKRClientService {
         headers: this.headers,
       });
     } catch (error) {
-      console.error('Failed to keep session alive:', error);
+      logger.error('Failed to keep session alive:', {}, error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -141,7 +145,7 @@ class IBKRClientService {
         (c.description.includes('NASDAQ') || c.description.includes('NYSE'))
       ) || null;
     } catch (error) {
-      console.error(`Failed to search contract for ${symbol}:`, error);
+      logger.error(`Failed to search contract for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
       return null;
     }
   }
@@ -195,7 +199,7 @@ class IBKRClientService {
         changePercent: parseFloat(quote['83'] || '0'),
       };
     } catch (error) {
-      console.error(`Failed to get quote for ${symbol}:`, error);
+      logger.error(`Failed to get quote for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
       return null;
     }
   }
@@ -226,7 +230,7 @@ class IBKRClientService {
       const data = await response.json();
       return data.data || [];
     } catch (error) {
-      console.error(`Failed to get historical data for ${symbol}:`, error);
+      logger.error(`Failed to get historical data for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
       return [];
     }
   }
@@ -320,7 +324,7 @@ class IBKRClientService {
 
       return null;
     } catch (error) {
-      console.error(`Failed to get options chain for ${symbol}:`, error);
+      logger.error(`Failed to get options chain for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
       return null;
     }
   }
@@ -343,7 +347,7 @@ class IBKRClientService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to get account info:', error);
+      logger.error('Failed to get account info:', {}, error instanceof Error ? error : new Error(String(error)));
       return null;
     }
   }
@@ -371,7 +375,7 @@ class IBKRClientService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to get positions:', error);
+      logger.error('Failed to get positions:', {}, error instanceof Error ? error : new Error(String(error)));
       return [];
     }
   }

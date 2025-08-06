@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAllTickers } from '@/lib/db/repository';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Tickers API');
 
 // GET /api/tickers - Get all tracked tickers
 export async function GET() {
@@ -7,7 +10,7 @@ export async function GET() {
     const tickers = await getAllTickers();
     return NextResponse.json({ tickers });
   } catch (error) {
-    console.error('Error fetching tickers:', error);
+    logger.error('Error fetching tickers:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { error: 'Failed to fetch tickers' },
       { status: 500 }
@@ -34,7 +37,7 @@ export async function POST(request: Request) {
     
     return NextResponse.json({ message: `Added ${ticker} to tracking` });
   } catch (error) {
-    console.error('Error adding ticker:', error);
+    logger.error('Error adding ticker:', {}, error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { error: 'Failed to add ticker' },
       { status: 500 }

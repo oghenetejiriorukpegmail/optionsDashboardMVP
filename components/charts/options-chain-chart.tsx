@@ -32,6 +32,8 @@ interface OptionsChainChartProps {
   height?: number;
   showGamma?: boolean;
   showVolume?: boolean;
+  dataSource?: string;
+  dataLatency?: number;
 }
 
 const OptionsChainChart: React.FC<OptionsChainChartProps> = ({
@@ -42,6 +44,8 @@ const OptionsChainChart: React.FC<OptionsChainChartProps> = ({
   height = 400,
   showGamma = false,
   showVolume = false,
+  dataSource = 'Yahoo Finance',
+  dataLatency,
 }) => {
   const chartRef = useRef<HTMLCanvasElement>(null);
 
@@ -203,6 +207,14 @@ const OptionsChainChart: React.FC<OptionsChainChartProps> = ({
       />
       <div className="text-xs text-muted-foreground mt-2 text-center">
         Note: This chart shows call and put open interest across strikes. Current price and Max Pain are indicated by blue and purple lines respectively.
+      </div>
+      <div className="text-xs text-muted-foreground mt-1 text-center">
+        Data provided by {dataSource}
+        {dataLatency && ` • Latency: ${dataLatency}ms`}
+        {' • '}
+        {dataSource === 'Yahoo Finance' 
+          ? 'Data delayed ~15 min, not for trading' 
+          : 'For informational purposes only'}
       </div>
     </div>
   );

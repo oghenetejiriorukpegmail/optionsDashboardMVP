@@ -4,11 +4,12 @@ import {
 } from './marketDataService';
 
 import { 
-  getOptionsChain, 
   calculateTechnicalIndicators,
   calculateOptionsMetrics,
   calculateIvPercentile
-} from './yahooFinanceSimple';
+} from './yahooFinance';
+
+import dataProviderFactory from '../data-providers';
 
 import { clearCache } from './cacheManager';
 
@@ -21,8 +22,12 @@ import {
   getHistoricalData as getDbHistoricalData
 } from '../db/repository';
 
-// Default tickers to track
-const DEFAULT_TICKERS = ['TSLA', 'AAPL', 'AMZN', 'MSFT', 'NVDA', 'GOOGL', 'META', 'NFLX', 'AMD', 'INTC'];
+import { createContextLogger } from '../utils/logger';
+
+const logger = createContextLogger('EnhancedDataCollector');
+
+// Default tickers to track - DISABLED to prevent wasting API calls
+const DEFAULT_TICKERS: string[] = []; // ['TSLA', 'AAPL', 'AMZN', 'MSFT', 'NVDA', 'GOOGL', 'META', 'NFLX', 'AMD', 'INTC'];
 
 // Collection intervals
 const QUOTE_INTERVAL_MS = 20000; // 20 seconds
@@ -49,7 +54,7 @@ const collectionStatus: Record<string, {
 
 // Initialize data collection for a ticker
 export function initializeDataCollection(ticker: string): void {
-  console.log(`Initializing data collection for ${ticker}`);
+  logger.info(`Initializing data collection for ${ticker}`, { ticker });
   
   // Cancel existing timers if they exist
   if (quoteTimers[ticker]) clearInterval(quoteTimers[ticker]);
@@ -105,7 +110,7 @@ export function initializeDataCollection(ticker: string): void {
 
 // Stop data collection for a ticker
 export function stopDataCollection(ticker: string): void {
-  console.log(`Stopping data collection for ${ticker}`);
+  logger.info(`Stopping data collection for ${ticker}`, { ticker });
   
   if (quoteTimers[ticker]) {
     clearInterval(quoteTimers[ticker]);
@@ -133,7 +138,7 @@ export function stopDataCollection(ticker: string): void {
 
 // Initialize data collection for default tickers
 export function initializeDefaultCollection(): void {
-  console.log('Initializing data collection for default tickers');
+  logger.info('Initializing data collection for default tickers', { tickers: DEFAULT_TICKERS });
   
   for (const ticker of DEFAULT_TICKERS) {
     initializeDataCollection(ticker);
@@ -143,7 +148,7 @@ export function initializeDefaultCollection(): void {
 // Collect quote data for a ticker
 async function collectQuoteData(ticker: string): Promise<void> {
   try {
-    console.log(`Collecting quote data for ${ticker}`);
+    logger.debug(`Collecting quote data for ${ticker}`, { ticker });
     
     const quoteData = await getQuote(ticker);
     if (!quoteData) {
@@ -154,7 +159,7 @@ async function collectQuoteData(ticker: string): Promise<void> {
     
     await saveStockData(quoteData);
     collectionStatus[ticker].lastQuoteUpdate = Date.now();
-    console.log(`Saved quote data for ${ticker}`);
+    logger.debug(`Saved quote data for ${ticker}`, { ticker });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     recordError(ticker, 'quote', errorMsg);
@@ -164,7 +169,7 @@ async function collectQuoteData(ticker: string): Promise<void> {
 // Collect historical data and calculate technical indicators
 async function collectHistoricalData(ticker: string): Promise<void> {
   try {
-    console.log(`Collecting historical data for ${ticker}`);
+    logger.debug(`Collecting historical data for ${ticker}`, { ticker });
     
     const historicalData = await getHistoricalData(ticker, '3mo', '1d');
     if (!historicalData) {
@@ -223,7 +228,7 @@ async function collectHistoricalData(ticker: string): Promise<void> {
     }
     
     collectionStatus[ticker].lastHistoricalUpdate = Date.now();
-    console.log(`Saved historical data and indicators for ${ticker}`);
+    logger.debug(`Saved historical data and indicators for ${ticker}`, { ticker });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     recordError(ticker, 'historical', errorMsg);
@@ -233,7 +238,7 @@ async function collectHistoricalData(ticker: string): Promise<void> {
 // Collect options data for a ticker
 async function collectOptionsData(ticker: string): Promise<void> {
   try {
-    console.log(`Collecting options data for ${ticker}`);
+    logger.debug(`Collecting options data for ${ticker}`, { ticker });
     
     // Get current stock price
     const quoteData = await getQuote(ticker);
@@ -243,8 +248,8 @@ async function collectOptionsData(ticker: string): Promise<void> {
       return;
     }
     
-    // Get options chain
-    const optionsChain = await getOptionsChain(ticker);
+    // Get options chain using data provider factory
+    const optionsChain = await dataProviderFactory.getOptionsChain(ticker);
     if (!optionsChain) {
       const error = `Failed to get options chain for ${ticker}`;
       recordError(ticker, 'options', error);
@@ -312,7 +317,7 @@ async function collectOptionsData(ticker: string): Promise<void> {
     }
     
     collectionStatus[ticker].lastOptionsUpdate = Date.now();
-    console.log(`Saved options data for ${ticker}`);
+    logger.debug(`Saved options data for ${ticker}`, { ticker });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     recordError(ticker, 'options', errorMsg);
@@ -322,7 +327,7 @@ async function collectOptionsData(ticker: string): Promise<void> {
 // Generate daily summary for a ticker
 async function generateDailySummary(ticker: string): Promise<void> {
   try {
-    console.log(`Generating daily summary for ${ticker}`);
+    logger.debug(`Generating daily summary for ${ticker}`, { ticker });
     
     // Get latest data
     const quoteData = await getQuote(ticker);
@@ -333,7 +338,7 @@ async function generateDailySummary(ticker: string): Promise<void> {
     }
     
     // Get options chain for max pain
-    const optionsChain = await getOptionsChain(ticker);
+    const optionsChain = await dataProviderFactory.getOptionsChain(ticker);
     if (!optionsChain) {
       const error = `Failed to get options chain for ${ticker}`;
       recordError(ticker, 'daily-summary', error);
@@ -397,7 +402,7 @@ async function generateDailySummary(ticker: string): Promise<void> {
     });
     
     collectionStatus[ticker].lastDailySummaryUpdate = Date.now();
-    console.log(`Saved daily summary for ${ticker}`);
+    logger.debug(`Saved daily summary for ${ticker}`, { ticker });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     recordError(ticker, 'daily-summary', errorMsg);
@@ -406,7 +411,7 @@ async function generateDailySummary(ticker: string): Promise<void> {
 
 // Record error for monitoring
 function recordError(ticker: string, dataType: string, error: string): void {
-  console.error(`Error collecting ${dataType} data for ${ticker}:`, error);
+  logger.error(`Error collecting ${dataType} data for ${ticker}`, { ticker, dataType, error });
   
   if (collectionStatus[ticker]) {
     collectionStatus[ticker].errors.push(`[${new Date().toISOString()}] ${dataType}: ${error}`);
@@ -453,7 +458,7 @@ export async function manuallyCollectData(ticker: string): Promise<void> {
 
 // Cleanup function for stopping all data collection
 export function cleanupAllCollections(): void {
-  console.log('Stopping all data collections');
+  logger.info('Stopping all data collections');
   
   for (const ticker of Object.keys(quoteTimers)) {
     stopDataCollection(ticker);

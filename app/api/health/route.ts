@@ -1,29 +1,32 @@
 import { NextResponse } from 'next/server';
 import { initializeDefaultCollection } from '@/lib/services/dataCollector';
 import { initDb } from '@/lib/db';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('Health API');
 
 // Singleton flag to track initialization
 let isInitialized = false;
 
 // GET /api/health - Health check and initialization
 export async function GET() {
-  // Initialize data collection on first request
+  // Initialize database only (no auto data collection)
   if (!isInitialized) {
     try {
-      // First initialize the database
+      // Initialize the database only
       await initDb();
       
-      // Then start data collection
-      await initializeDefaultCollection();
+      // DON'T start automatic data collection to save API calls
+      // await initializeDefaultCollection();
       
       isInitialized = true;
-      console.log('Data collection initialized during health check');
+      logger.debug('Database initialized during health check (auto-collection disabled)');
     } catch (error) {
-      console.error('Failed to initialize data collection:', error);
+      logger.error('Failed to initialize database:', {}, error instanceof Error ? error : new Error(String(error)));
       return NextResponse.json(
         { 
           status: 'error', 
-          message: 'Failed to initialize data collection',
+          message: 'Failed to initialize database',
           error: error instanceof Error ? error.message : String(error)
         },
         { status: 500 }

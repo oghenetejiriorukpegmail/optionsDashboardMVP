@@ -2,6 +2,9 @@ import axios from 'axios';
 import * as talib from 'ta-lib';
 import { SCANNER_CONFIG, TECHNICAL_INDICATOR_CONFIG } from '@/lib/config';
 import { cachedFetch, cacheManager } from './cacheManager';
+import { createContextLogger } from '@/lib/utils/logger';
+
+const logger = createContextLogger('YahooFinanceSimple');
 
 // Types for Yahoo Finance API responses
 interface YahooQuote {
@@ -101,7 +104,7 @@ async function fetchYahooFinanceApi<T>(
   
   while (attempts < API_RETRY_ATTEMPTS) {
     try {
-      console.log(`Attempting Yahoo Finance API call (${attempts + 1}/${API_RETRY_ATTEMPTS}): ${url}`);
+      logger.debug(`Attempting Yahoo Finance API call (${attempts + 1}/${API_RETRY_ATTEMPTS}): ${url}`);
       
       const response = await axios.get(url, {
         params,
@@ -115,7 +118,7 @@ async function fetchYahooFinanceApi<T>(
       lastError = error;
       
       const status = error.response?.status;
-      console.error(`Yahoo Finance API error (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, 
+      logger.error(`Yahoo Finance API error (attempt ${attempts}/${API_RETRY_ATTEMPTS}):`, 
         status ? `Status ${status}` : error.message);
       
       // Don't retry on 4xx errors (except 429)
@@ -128,7 +131,7 @@ async function fetchYahooFinanceApi<T>(
           ? Math.min(API_RETRY_DELAY * Math.pow(2, attempts), 30000)
           : API_RETRY_DELAY;
         
-        console.log(`Waiting ${backoffTime}ms before retry...`);
+        logger.debug(`Waiting ${backoffTime}ms before retry...`);
         await delay(backoffTime);
       }
     }
@@ -155,7 +158,7 @@ export async function getQuote(ticker: string): Promise<{
   return cachedFetch(
     cacheKey,
     async () => {
-      console.log(`Fetching quote for ${ticker} from API...`);
+      logger.debug(`Fetching quote for ${ticker} from API...`);
       
       try {
         const data = await fetchYahooFinanceApi<any>(
@@ -165,7 +168,7 @@ export async function getQuote(ticker: string): Promise<{
         
         const quoteData = data.quoteResponse?.result?.[0];
         if (!quoteData) {
-          console.error(`No quote data found for ${ticker}`);
+          logger.error(`No quote data found for ${ticker}`);
           return null;
         }
         
@@ -180,7 +183,7 @@ export async function getQuote(ticker: string): Promise<{
           volume: quoteData.regularMarketVolume,
         };
       } catch (error) {
-        console.error(`Error fetching quote for ${ticker}:`, error);
+        logger.error(`Error fetching quote for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         throw error;
       }
     },
@@ -210,7 +213,7 @@ export async function getHistoricalData(
   return cachedFetch(
     cacheKey,
     async () => {
-      console.log(`Fetching historical data for ${ticker} from API...`);
+      logger.debug(`Fetching historical data for ${ticker} from API...`);
       
       try {
         const data = await fetchYahooFinanceApi<any>(
@@ -225,7 +228,7 @@ export async function getHistoricalData(
         
         const result = data.chart?.result?.[0];
         if (!result) {
-          console.error(`No historical data found for ${ticker}`);
+          logger.error(`No historical data found for ${ticker}`);
           return null;
         }
         
@@ -245,7 +248,7 @@ export async function getHistoricalData(
           adjclose: adjclose || close || [],
         };
       } catch (error) {
-        console.error(`Error fetching historical data for ${ticker}:`, error);
+        logger.error(`Error fetching historical data for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         throw error;
       }
     },
@@ -272,7 +275,7 @@ export async function getOptionsChain(
   return cachedFetch(
     cacheKey,
     async () => {
-      console.log(`Fetching options chain for ${ticker} from API...`);
+      logger.debug(`Fetching options chain for ${ticker} from API...`);
       
       try {
         let url = `${YAHOO_FINANCE_API.OPTIONS}/${ticker}`;
@@ -288,7 +291,7 @@ export async function getOptionsChain(
         
         const optionChain = data.optionChain?.result?.[0];
         if (!optionChain) {
-          console.error(`No options chain found for ${ticker}`);
+          logger.error(`No options chain found for ${ticker}`);
           return null;
         }
         
@@ -304,7 +307,7 @@ export async function getOptionsChain(
           puts: optionChain.options?.[0]?.puts || [],
         };
       } catch (error) {
-        console.error(`Error fetching options chain for ${ticker}:`, error);
+        logger.error(`Error fetching options chain for ${ticker}:`, {}, error instanceof Error ? error : new Error(String(error)));
         throw error;
       }
     },

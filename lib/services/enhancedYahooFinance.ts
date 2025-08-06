@@ -3,6 +3,9 @@ import * as talib from 'ta-lib';
 import { SCANNER_CONFIG, TECHNICAL_INDICATOR_CONFIG } from '@/lib/config';
 import { cachedFetch, cacheManager } from './cacheManager';
 import { makeAuthenticatedRequest } from './yahooFinanceAuth';
+import { createContextLogger } from '../utils/logger';
+
+const logger = createContextLogger('EnhancedYahooFinance');
 
 // Types for Yahoo Finance API responses
 interface YahooQuote {
@@ -119,7 +122,7 @@ export async function getQuote(ticker: string): Promise<{
   return cachedFetch(
     cacheKey,
     async () => {
-      console.log(`Fetching quote for ${ticker} from API...`);
+      logger.debug(`Fetching quote for ${ticker} from API...`);
       
       const data = await fetchYahooFinanceApi<any>(YAHOO_FINANCE_API.QUOTE, {
         symbols: ticker,
@@ -129,7 +132,7 @@ export async function getQuote(ticker: string): Promise<{
       const quoteData = data.quoteResponse.result[0] as YahooQuote;
       
       if (!quoteData) {
-        console.error(`No quote data found for ${ticker}`);
+        logger.error(`No quote data found for ${ticker}`);
         return null;
       }
       
@@ -179,7 +182,7 @@ export async function getHistoricalData(
   return cachedFetch(
     cacheKey,
     async () => {
-      console.log(`Fetching historical data for ${ticker} from API...`);
+      logger.debug(`Fetching historical data for ${ticker} from API...`);
       
       const data = await fetchYahooFinanceApi<any>(`${YAHOO_FINANCE_API.HISTORY}/${ticker}`, {
         period,
@@ -190,7 +193,7 @@ export async function getHistoricalData(
       
       const result = data.chart.result[0];
       if (!result) {
-        console.error(`No historical data found for ${ticker}`);
+        logger.error(`No historical data found for ${ticker}`);
         return null;
       }
       
@@ -233,7 +236,7 @@ export async function getOptionsChain(ticker: string, expirationTimestamp?: numb
   return cachedFetch(
     cacheKey,
     async () => {
-      console.log(`Fetching options chain for ${ticker} from API...`);
+      logger.debug(`Fetching options chain for ${ticker} from API...`);
       
       let url = `${YAHOO_FINANCE_API.OPTIONS}/${ticker}`;
       let params = {};
@@ -247,7 +250,7 @@ export async function getOptionsChain(ticker: string, expirationTimestamp?: numb
       const optionChain = data.optionChain.result[0] as YahooOptionChain;
       
       if (!optionChain) {
-        console.error(`No options chain found for ${ticker}`);
+        logger.error(`No options chain found for ${ticker}`);
         return null;
       }
       
@@ -349,7 +352,7 @@ export function calculateTechnicalIndicators(historicalData: {
     
     return result;
   } catch (error) {
-    console.error('Error calculating technical indicators:', error);
+    logger.error('Error calculating technical indicators:', {}, error instanceof Error ? error : new Error(String(error)));
     return {
       ema10: [],
       ema20: [],

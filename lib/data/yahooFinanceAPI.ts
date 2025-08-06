@@ -2,6 +2,9 @@ import axios from 'axios';
 // import yahooStockAPI from 'yahoo-stock-api'; // Removed
 import { SCANNER_CONFIG, TECHNICAL_INDICATOR_CONFIG } from '@/lib/config';
 import { nasdaq100Tickers } from './nasdaq100';
+import { createContextLogger } from '../utils/logger';
+
+const logger = createContextLogger('YahooFinanceAPI');
 
 // Base URL for Yahoo Finance API
 const YAHOO_FINANCE_BASE_URL = 'https://query1.finance.yahoo.com';
@@ -35,7 +38,7 @@ const handleRateLimiting = async (error: any, attempt: number): Promise<number> 
   // If we got a 429 (Too Many Requests) status code, wait longer
   if (error.response && error.response.status === 429) {
     const backoffTime = Math.min(API_RETRY_DELAY * Math.pow(2, attempt), 10000);
-    console.log(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
+    logger.debug(`Rate limited. Backing off for ${backoffTime}ms before retry.`);
     
     // If multiple 429 errors occur or it's the last attempt, throw error
     if (attempt >= API_RETRY_ATTEMPTS - 1) {
@@ -89,7 +92,7 @@ function calculateIndicators(historicalData: any[]) {
       stochasticRsi: stochasticRsi[index] || null
     }));
   } catch (error) {
-    console.error("Error calculating indicators:", error);
+    logger.error("Error calculating indicators:", {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -114,7 +117,7 @@ function calculateEMA(data: any[], period: number) {
     
     return result;
   } catch (error) {
-    console.error("Error calculating EMA:", error);
+    logger.error("Error calculating EMA:", {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -150,7 +153,7 @@ function calculateRSI(data: any[], period: number) {
     
     return result;
   } catch (error) {
-    console.error("Error calculating RSI:", error);
+    logger.error("Error calculating RSI:", {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -179,7 +182,7 @@ function calculateStochasticRSI(rsiValues: number[], period: number) {
     
     return result;
   } catch (error) {
-    console.error("Error calculating Stochastic RSI:", error);
+    logger.error("Error calculating Stochastic RSI:", {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -206,7 +209,7 @@ function determineEmaTrend(lastBar: any) {
       return 'Flat';
     }
   } catch (error) {
-    console.error("Error determining EMA trend:", error);
+    logger.error("Error determining EMA trend:", {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -229,7 +232,7 @@ function determineSetupType(lastBar: any, emaTrend: string, pcr: number) {
       return 'neutral';
     }
   } catch (error) {
-    console.error("Error determining setup type:", error);
+    logger.error("Error determining setup type:", {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -250,7 +253,7 @@ export async function fetchHistoricalData(symbol: string, period = '3mo', interv
     }
     
     
-    console.log(`Fetching historical data for ${symbol} (period: ${period}, interval: ${interval})...`);
+    logger.debug(`Fetching historical data for ${symbol} (period: ${period}, interval: ${interval})...`);
     
     let attempts = 0;
     let apiResponse;
@@ -292,7 +295,7 @@ export async function fetchHistoricalData(symbol: string, period = '3mo', interv
           
           // Process the historical data and calculate indicators
           const processedData = calculateIndicators(formattedHistoricalData);
-          console.log(`Successfully fetched and processed historical data for ${symbol}`);
+          logger.debug(`Successfully fetched and processed historical data for ${symbol}`);
           
           apiCache[cacheKey] = {
             timestamp: now,
@@ -301,7 +304,7 @@ export async function fetchHistoricalData(symbol: string, period = '3mo', interv
           return processedData;
         }
       } catch (error) {
-        console.error(`Attempt ${attempts + 1} failed for historical data ${symbol}:`, (error as any).message || error);
+        logger.error(`Attempt ${attempts + 1} failed for historical data ${symbol}:`, (error as any).message || error);
         // Handle rate limiting with exponential backoff
         await handleRateLimiting(error, attempts);
       }
@@ -309,11 +312,11 @@ export async function fetchHistoricalData(symbol: string, period = '3mo', interv
       attempts++;
     }
     
-    console.log(`Failed to fetch historical data for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
+    logger.debug(`Failed to fetch historical data for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
     throw new Error(`Failed to fetch historical data for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
 
   } catch (error) {
-    console.error(`Error fetching historical data for ${symbol}:`, error);
+    logger.error(`Error fetching historical data for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -332,7 +335,7 @@ export async function fetchStockInfo(symbol: string) {
     }
     
     
-    console.log(`Fetching stock info for ${symbol}...`);
+    logger.debug(`Fetching stock info for ${symbol}...`);
     
     let attempts = 0;
     let apiResponse;
@@ -354,7 +357,7 @@ export async function fetchStockInfo(symbol: string) {
 
         const quoteData = apiResponse.data.quoteResponse.result[0];
         if (quoteData) {
-          console.log(`Successfully fetched real stock info for ${symbol}`);
+          logger.debug(`Successfully fetched real stock info for ${symbol}`);
           apiCache[cacheKey] = {
             timestamp: now,
             data: quoteData, // Store the raw quote data
@@ -362,7 +365,7 @@ export async function fetchStockInfo(symbol: string) {
           return quoteData;
         }
       } catch (error) {
-        console.error(`Attempt ${attempts + 1} failed for stock info ${symbol}:`, (error as any).message || error);
+        logger.error(`Attempt ${attempts + 1} failed for stock info ${symbol}:`, (error as any).message || error);
         // Handle rate limiting with exponential backoff
         await handleRateLimiting(error, attempts);
       }
@@ -370,11 +373,11 @@ export async function fetchStockInfo(symbol: string) {
       attempts++;
     }
     
-    console.log(`Failed to fetch stock info for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
+    logger.debug(`Failed to fetch stock info for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
     throw new Error(`Failed to fetch stock info for ${symbol} after ${API_RETRY_ATTEMPTS} attempts`);
 
   } catch (error) {
-    console.error(`Error fetching stock info for ${symbol}:`, error);
+    logger.error(`Error fetching stock info for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -400,7 +403,7 @@ function calculatePCR(symbol: string) {
     
     return pcr;
   } catch (error) {
-    console.error(`Error calculating PCR for ${symbol}:`, error);
+    logger.error(`Error calculating PCR for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -443,7 +446,7 @@ function calculateKeyLevels(price: number, historicalData: any[]) {
       maxPain
     };
   } catch (error) {
-    console.error(`Error calculating key levels:`, error);
+    logger.error(`Error calculating key levels:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -464,7 +467,7 @@ function determineSetupStrength(setupType: string, rsi: number) {
       return 'medium';
     }
   } catch (error) {
-    console.error("Error determining setup strength:", error);
+    logger.error("Error determining setup strength:", {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -504,7 +507,7 @@ function generateRecommendation(price: number, setupType: string, keyLevels: any
       };
     }
   } catch (error) {
-    console.error("Error generating recommendation:", error);
+    logger.error("Error generating recommendation:", {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -515,7 +518,7 @@ function generateRecommendation(price: number, setupType: string, keyLevels: any
  */
 export async function generateStockAnalysis(symbol: string) {
   try {
-    console.log(`Generating stock analysis for ${symbol}...`);
+    logger.debug(`Generating stock analysis for ${symbol}...`);
     
     // Fetch historical data and calculate indicators
     const historicalData = await fetchHistoricalData(symbol);
@@ -570,7 +573,7 @@ export async function generateStockAnalysis(symbol: string) {
       historicalData
     };
   } catch (error) {
-    console.error(`Error generating stock analysis for ${symbol}:`, error);
+    logger.error(`Error generating stock analysis for ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -581,7 +584,7 @@ export async function generateStockAnalysis(symbol: string) {
  */
 export async function fetchMultipleStockAnalyses(symbols: string[]) {
   try {
-    console.log(`Fetching analyses for multiple stocks: ${symbols.join(', ')}...`);
+    logger.debug(`Fetching analyses for multiple stocks: ${symbols.join(', ')}...`);
     
     // Process symbols in parallel with Promise.all, but with a concurrency limit
     const CONCURRENCY_LIMIT = SCANNER_CONFIG.API.CONCURRENCY_LIMIT; // Use config setting to avoid rate limiting
@@ -592,7 +595,7 @@ export async function fetchMultipleStockAnalyses(symbols: string[]) {
       const batchPromises = batch.map(symbol => {
         return generateStockAnalysis(symbol)
           .catch(error => {
-            console.error(`Error analyzing ${symbol}:`, error);
+            logger.error(`Error analyzing ${symbol}:`, {}, error instanceof Error ? error : new Error(String(error)));
             throw error;
           });
       });
@@ -608,7 +611,7 @@ export async function fetchMultipleStockAnalyses(symbols: string[]) {
     
     return results;
   } catch (error) {
-    console.error('Error fetching multiple stock analyses:', error);
+    logger.error('Error fetching multiple stock analyses:', {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -620,14 +623,14 @@ export async function fetchMultipleStockAnalyses(symbols: string[]) {
  */
 export async function generateNasdaq100ScannerResults(symbolsToFetch: string[] = [], limit: number = 10) {
   try {
-    console.log(`Generating NASDAQ 100 scanner results with limit: ${limit}...`);
+    logger.debug(`Generating NASDAQ 100 scanner results with limit: ${limit}...`);
     
     // Use the provided symbols, or use the NASDAQ 100 tickers and limit them
     const symbols = symbolsToFetch.length > 0 ? 
       symbolsToFetch.slice(0, limit) : 
       nasdaq100Tickers.slice(0, limit);
     
-    console.log(`Scanning ${symbols.length} symbols: ${symbols.join(', ')}`);
+    logger.debug(`Scanning ${symbols.length} symbols: ${symbols.join(', ')}`);
     
     // Fetch stock analyses for all symbols
     const stockData = await fetchMultipleStockAnalyses(symbols);
@@ -659,7 +662,7 @@ export async function generateNasdaq100ScannerResults(symbolsToFetch: string[] =
       results: stockData
     };
   } catch (error) {
-    console.error('Error generating NASDAQ 100 scanner results:', error);
+    logger.error('Error generating NASDAQ 100 scanner results:', {}, error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -667,7 +670,7 @@ export async function generateNasdaq100ScannerResults(symbolsToFetch: string[] =
 // Clear cache function for testing
 export function clearCache() {
   Object.keys(apiCache).forEach(key => delete apiCache[key]);
-  console.log('Cache cleared');
+  logger.debug('Cache cleared');
 }
 
 // Re-export nasdaq100Tickers for convenience
