@@ -5,8 +5,7 @@ const logger = createContextLogger('WatchlistAPI');
 import { 
   getWatchlist, 
   addToWatchlist, 
-  removeFromWatchlist, 
-  WatchlistItem 
+  removeFromWatchlist
 } from '@/lib/db/watchlist';
 import { getLatestStockPrice } from '@/lib/db/repository';
 

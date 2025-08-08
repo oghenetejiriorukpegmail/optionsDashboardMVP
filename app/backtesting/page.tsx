@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { BarChart3, TrendingUp, TrendingDown, Play, RefreshCw, Save, BarChart, LineChart, PieChart, BookOpen, Calendar, Clock, Share2, Activity, Settings } from 'lucide-react';
+import { BarChart3, Play, RefreshCw, Save, BarChart, LineChart, PieChart, Calendar, Share2, Activity, Settings } from 'lucide-react';
 
 // Default backtest parameters
 const DEFAULT_PARAMS = {
