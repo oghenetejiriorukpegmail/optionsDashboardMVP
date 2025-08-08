@@ -242,7 +242,7 @@ export default function BullishOptionsVisualizer({
           },
           label: (context) => {
             const dataset = context.dataset.label || '';
-            let value = context.parsed.y;
+            const value = context.parsed.y;
             
             if (dataset === 'Max Profit' && value === Infinity) {
               return `${dataset}: Unlimited Upside`;

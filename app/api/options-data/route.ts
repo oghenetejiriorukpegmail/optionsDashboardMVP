@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOptionsData, getExpirationDates } from '@/lib/db/repository';
+import { getOptionsData } from '@/lib/db/repository';
 import { createContextLogger } from '@/lib/utils/logger';
 
 const logger = createContextLogger('Options Data API');

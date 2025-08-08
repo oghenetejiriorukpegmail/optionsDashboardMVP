@@ -6,7 +6,7 @@ import { createContextLogger } from '@/lib/utils/logger';
 const logger = createContextLogger('Options Chain API');
 
 // Cache for options chain data
-const optionsCache: Record<string, { data: any; timestamp: number }> = {};
+const optionsCache: Record<string, { data: unknown; timestamp: number }> = {};
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export async function GET(request: Request) {
@@ -130,7 +130,7 @@ async function fetchOptionExpirations(symbol: string): Promise<{ expirations: st
 }
 
 // Fetch options chain for a specific expiration using data provider
-async function fetchOptionsChain(symbol: string, expiration: string): Promise<any> {
+async function fetchOptionsChain(symbol: string, expiration: string): Promise<unknown> {
   try {
     // Try IBKR first if available
     if (process.env.IBKR_GATEWAY_URL) {

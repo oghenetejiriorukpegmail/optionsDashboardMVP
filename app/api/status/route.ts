@@ -8,7 +8,7 @@ const logger = createContextLogger('Status API');
 /**
  * GET /api/status - Returns status information about the data collection and caching
  */
-export async function GET(request: Request) {
+export async function GET() {
   try {
     // Get cache stats
     const cacheStats = getCacheStats();

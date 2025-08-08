@@ -69,7 +69,7 @@ export function RiskCalculator({ symbol, stockData }: RiskCalculatorProps) {
       
       // Calculate locally or call API
       const maxRiskAmount = accountSize * (riskPercentage / 100);
-      let contractsToTrade = Math.floor(maxRiskAmount / optionPremium);
+      const contractsToTrade = Math.floor(maxRiskAmount / optionPremium);
       
       // Apply adjustments based on IV and GEX
       let adjustmentFactor = 1.0;

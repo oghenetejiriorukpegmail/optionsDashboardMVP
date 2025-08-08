@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     let winProbability = body.winProbability || 0; // Default to 0 if not provided
     let adjustedRiskRewardRatio: number;
     let riskScore: number; // 1-10 scale where 10 is safest
-    let recommendations: string[] = [];
+    const recommendations: string[] = [];
     
     // Calculate based on position type
     switch (body.positionType) {

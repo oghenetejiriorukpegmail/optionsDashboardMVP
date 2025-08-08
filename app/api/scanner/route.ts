@@ -3,8 +3,6 @@ import {
   getAllTickers, 
   getLatestMarketContext, 
   getOptionsData, 
-  getDailySummaries,
-  saveTradeSetup,
   getTradeSetups
 } from '@/lib/db/repository';
 import { analyzeTradeSetups, batchAnalyzeSetups } from '@/lib/services/strategyAnalyzer';

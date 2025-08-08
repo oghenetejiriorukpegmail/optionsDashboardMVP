@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     let maxLoss: number | null = null;
     let riskDescription: string = '';
     let confidenceLevel: 'high' | 'medium' | 'low' = 'medium';
-    let additionalRecommendations: string[] = [];
+    const additionalRecommendations: string[] = [];
     
     switch (body.stopType) {
       case 'technical':

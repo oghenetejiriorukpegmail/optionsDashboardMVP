@@ -19,7 +19,6 @@ export async function POST(request: Request) {
       accountSize, 
       riskPercentage, 
       optionPremium, 
-      stockPrice,
       iv,
       gexAdjustment 
     } = body;
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
     const riskAmount = accountSize * (riskPercentage / 100);
     
     // Calculate initial number of contracts
-    let contractsToTrade = Math.floor(riskAmount / optionPremium);
+    const contractsToTrade = Math.floor(riskAmount / optionPremium);
     
     // Apply adjustments based on IV and GEX
     let adjustmentFactor = 1.0;

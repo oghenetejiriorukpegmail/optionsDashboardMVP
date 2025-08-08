@@ -11,7 +11,7 @@ let dbInitialized = false;
  * GET /api/init - Initialize database only (no automatic data collection)
  * Data collection must be triggered manually via /api/collect-data
  */
-export async function GET(request: Request) {
+export async function GET() {
   try {
     if (!dbInitialized) {
       // Initialize database

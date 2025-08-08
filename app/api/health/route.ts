@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { initializeDefaultCollection } from '@/lib/services/dataCollector';
 import { initDb } from '@/lib/db';
 import { createContextLogger } from '@/lib/utils/logger';
 

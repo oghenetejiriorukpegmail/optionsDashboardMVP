@@ -335,7 +335,7 @@ export async function getOptionsChain(
           logger.debug(`MarketData options failed for ${ticker}, falling back to Yahoo: ${err instanceof Error ? err.message : String(err)}`);
         }
 
-        let url = `${YAHOO_FINANCE_API.OPTIONS}/${ticker}`;
+        const url = `${YAHOO_FINANCE_API.OPTIONS}/${ticker}`;
         const params: any = {};
         if (expirationTimestamp) {
           params.date = expirationTimestamp;

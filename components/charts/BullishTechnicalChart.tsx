@@ -306,7 +306,7 @@ export default function BullishTechnicalChart({
             return `Date: ${tooltipItems[0].label}`;
           },
           label: (context) => {
-            let label = context.dataset.label || '';
+            const label = context.dataset.label || '';
             
             if (label === 'Price') {
               return `${label}: $${context.parsed.y.toFixed(2)}`;

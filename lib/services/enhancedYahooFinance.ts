@@ -238,7 +238,7 @@ export async function getOptionsChain(ticker: string, expirationTimestamp?: numb
     async () => {
       logger.debug(`Fetching options chain for ${ticker} from API...`);
       
-      let url = `${YAHOO_FINANCE_API.OPTIONS}/${ticker}`;
+      const url = `${YAHOO_FINANCE_API.OPTIONS}/${ticker}`;
       let params = {};
       
       if (expirationTimestamp) {

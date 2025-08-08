@@ -28,7 +28,7 @@ export function Pagination({
       // Show a window of pages around the current page
       const halfWindow = Math.floor(maxPagesToShow / 2);
       let startPage = Math.max(1, currentPage - halfWindow);
-      let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+      const endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
       
       // Adjust if we're near the end
       if (endPage === totalPages) {

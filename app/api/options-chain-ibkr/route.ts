@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Filter by expiration if provided
-    let filteredStrikes = optionsChain.strikes;
+    const filteredStrikes = optionsChain.strikes;
     if (expiration && optionsChain.expirations.includes(expiration)) {
       // In a real implementation, we'd filter strikes by expiration
       // For now, return all strikes
@@ -68,8 +68,6 @@ function generateSyntheticOptionsChain(ticker: string) {
     if (strike > 0) {
       // Calculate synthetic Greeks based on moneyness
       const moneyness = (basePrice - strike) / basePrice;
-      const timeToExpiry = 30 / 365; // 30 days
-      
       // Simplified Black-Scholes approximations
       const iv = 0.25 + Math.abs(moneyness) * 0.1; // IV smile
       const delta = moneyness > 0 ? 0.5 + moneyness * 2 : 0.5 + moneyness * 2;

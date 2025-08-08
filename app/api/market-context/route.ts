@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { 
   getLatestStockData,
-  getLatestTechnicalIndicators,
-  getStockData
+  getLatestTechnicalIndicators
 } from '@/lib/db/repository';
 import { CORE_MARKET_INDEXES, MARKET_THRESHOLDS } from '@/lib/config/market-indexes';
 import { createContextLogger } from '@/lib/utils/logger';
@@ -39,7 +38,7 @@ interface MarketContext {
 }
 
 // GET /api/market-context - Get overall market context from indexes
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const indexes: MarketIndexData[] = [];
     let vixData: MarketIndexData | null = null;
