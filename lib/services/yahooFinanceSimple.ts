@@ -3,6 +3,7 @@ import * as talib from 'ta-lib';
 import { SCANNER_CONFIG, TECHNICAL_INDICATOR_CONFIG } from '@/lib/config';
 import { cachedFetch, cacheManager } from './cacheManager';
 import { createContextLogger } from '@/lib/utils/logger';
+import { getQuote as mdGetQuote, getHistoricalData as mdGetHistoricalData, getOptionsChain as mdGetOptionsChain } from './marketdataService';
 
 const logger = createContextLogger('YahooFinanceSimple');
 
@@ -158,9 +159,29 @@ export async function getQuote(ticker: string): Promise<{
   return cachedFetch(
     cacheKey,
     async () => {
-      logger.debug(`Fetching quote for ${ticker} from API...`);
+      logger.debug(`Fetching quote for ${ticker} from API/provider...`);
       
       try {
+        // Prefer MarketData.app when available
+        try {
+          const mdQuote = await mdGetQuote(ticker);
+          if (mdQuote) {
+            return {
+              ticker: mdQuote.ticker,
+              date: mdQuote.date,
+              timestamp: mdQuote.timestamp,
+              open: mdQuote.open,
+              high: mdQuote.high,
+              low: mdQuote.low,
+              close: mdQuote.close,
+              volume: mdQuote.volume,
+            };
+          }
+        } catch (err) {
+          // Log and continue to fallback to Yahoo
+          logger.debug(`MarketData quote failed for ${ticker}, falling back to Yahoo: ${err instanceof Error ? err.message : String(err)}`);
+        }
+
         const data = await fetchYahooFinanceApi<any>(
           YAHOO_FINANCE_API.QUOTE,
           { symbols: ticker }
@@ -213,9 +234,28 @@ export async function getHistoricalData(
   return cachedFetch(
     cacheKey,
     async () => {
-      logger.debug(`Fetching historical data for ${ticker} from API...`);
+      logger.debug(`Fetching historical data for ${ticker} from provider/API...`);
       
       try {
+        // Prefer MarketData.app
+        try {
+          const mdHist = await mdGetHistoricalData(ticker, period.toUpperCase() === '3MO' ? '3M' : '3M', 'D');
+          if (mdHist) {
+            return {
+              dates: mdHist.dates,
+              timestamps: mdHist.timestamps,
+              open: mdHist.open,
+              high: mdHist.high,
+              low: mdHist.low,
+              close: mdHist.close,
+              volume: mdHist.volume,
+              adjclose: mdHist.adjclose ?? mdHist.close,
+            };
+          }
+        } catch (err) {
+          logger.debug(`MarketData historical failed for ${ticker}, falling back to Yahoo: ${err instanceof Error ? err.message : String(err)}`);
+        }
+
         const data = await fetchYahooFinanceApi<any>(
           `${YAHOO_FINANCE_API.HISTORY}/${ticker}`,
           {
@@ -275,9 +315,26 @@ export async function getOptionsChain(
   return cachedFetch(
     cacheKey,
     async () => {
-      logger.debug(`Fetching options chain for ${ticker} from API...`);
+      logger.debug(`Fetching options chain for ${ticker} from provider/API...`);
       
       try {
+        // Prefer MarketData.app
+        try {
+          const mdOptions = await mdGetOptionsChain(ticker, expirationTimestamp ? String(expirationTimestamp) : undefined);
+          if (mdOptions) {
+            return {
+              ticker: mdOptions.ticker,
+              expirationDates: mdOptions.expirationDates,
+              currentExpirationDate: mdOptions.currentExpirationDate,
+              strikes: mdOptions.strikes,
+              calls: mdOptions.calls as YahooOption[],
+              puts: mdOptions.puts as YahooOption[],
+            };
+          }
+        } catch (err) {
+          logger.debug(`MarketData options failed for ${ticker}, falling back to Yahoo: ${err instanceof Error ? err.message : String(err)}`);
+        }
+
         let url = `${YAHOO_FINANCE_API.OPTIONS}/${ticker}`;
         const params: any = {};
         if (expirationTimestamp) {
