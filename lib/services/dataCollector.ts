@@ -9,11 +9,11 @@ import {
 import dataProviderFactory from '../data-providers';
 import { getQuote as mdGetQuote, getHistoricalData as mdGetHistoricalData, getOptionsChain as mdGetOptionsChain } from './marketdataService';
 
-import { 
-  saveStockData, 
-  saveTechnicalIndicators, 
-  saveOptionsData, 
-  saveMarketSentiment, 
+import {
+  saveStockData,
+  saveTechnicalIndicators,
+  saveOptionsData,
+  saveMarketSentiment,
   saveDailySummary,
   getHistoricalData as getDbHistoricalData,
   getOptionsData

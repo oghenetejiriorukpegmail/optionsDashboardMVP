@@ -1,7 +1,7 @@
-import { 
-  getQuote, 
+import {
+  getQuote,
   getHistoricalData
-} from './marketDataService';
+} from './marketdataService';
 
 import { 
   calculateTechnicalIndicators,
