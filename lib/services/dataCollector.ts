@@ -1,12 +1,13 @@
 // Use the new data provider factory instead of old marketDataService
 
-import { 
+import {
   calculateTechnicalIndicators,
   calculateOptionsMetrics,
   calculateIvPercentile
 } from './yahooFinance';
 
 import dataProviderFactory from '../data-providers';
+import { getQuote as mdGetQuote, getHistoricalData as mdGetHistoricalData, getOptionsChain as mdGetOptionsChain } from './marketdataService';
 
 import { 
   saveStockData, 
@@ -184,7 +185,12 @@ async function collectQuoteData(ticker: string): Promise<void> {
   try {
     logger.debug(`Collecting quote data for ${ticker}`, { ticker });
     
-    const quoteData = await dataProviderFactory.getQuote(ticker);
+    // Prefer MarketData.app directly (uses rotating keys); fall back to provider factory
+    let quoteData = await mdGetQuote(ticker);
+    if (!quoteData) {
+      quoteData = await dataProviderFactory.getQuote(ticker);
+    }
+
     if (!quoteData) {
       logger.error(`Failed to get quote data for ${ticker}`, { ticker });
       return;
@@ -202,7 +208,12 @@ async function collectHistoricalData(ticker: string): Promise<void> {
   try {
     logger.debug(`Collecting historical data for ${ticker}`, { ticker });
     
-    const historicalData = await dataProviderFactory.getHistoricalData(ticker, '3mo', '1d');
+    // Prefer MarketData.app first, fall back to provider factory if needed
+    let historicalData = await mdGetHistoricalData(ticker, '3M', 'D');
+    if (!historicalData) {
+      historicalData = await dataProviderFactory.getHistoricalData(ticker, '3mo', '1d');
+    }
+
     if (!historicalData) {
       logger.error(`Failed to get historical data for ${ticker}`, { ticker });
       return;
@@ -268,15 +279,20 @@ async function collectOptionsData(ticker: string): Promise<void> {
   try {
     logger.debug(`Collecting options data for ${ticker}`);
     
-    // Get current stock price
-    const quoteData = await dataProviderFactory.getQuote(ticker);
+    // Prefer MarketData.app first for quotes/options, fall back to provider factory
+    let quoteData = await mdGetQuote(ticker);
+    if (!quoteData) {
+      quoteData = await dataProviderFactory.getQuote(ticker);
+    }
     if (!quoteData) {
       logger.error(`Failed to get quote data for ${ticker}`, { ticker });
       return;
     }
     
-    // Get options chain using data provider factory
-    const optionsChain = await dataProviderFactory.getOptionsChain(ticker);
+    let optionsChain = await mdGetOptionsChain(ticker);
+    if (!optionsChain) {
+      optionsChain = await dataProviderFactory.getOptionsChain(ticker);
+    }
     if (!optionsChain) {
       logger.error(`Failed to get options chain for ${ticker}`, { ticker });
       return;
@@ -351,21 +367,30 @@ async function generateDailySummary(ticker: string): Promise<void> {
     logger.debug(`Generating daily summary for ${ticker}`);
     
     // Get latest data
-    const quoteData = await dataProviderFactory.getQuote(ticker);
+    let quoteData = await mdGetQuote(ticker);
+    if (!quoteData) {
+      quoteData = await dataProviderFactory.getQuote(ticker);
+    }
     if (!quoteData) {
       logger.error(`Failed to get quote data for ${ticker}`, { ticker });
       return;
     }
     
-    // Get options chain for max pain using data provider factory
-    const optionsChain = await dataProviderFactory.getOptionsChain(ticker);
+    // Get options chain for max pain using MarketData.app first, fallback to provider factory
+    let optionsChain = await mdGetOptionsChain(ticker);
+    if (!optionsChain) {
+      optionsChain = await dataProviderFactory.getOptionsChain(ticker);
+    }
     if (!optionsChain) {
       logger.error(`Failed to get options chain for ${ticker}`, { ticker });
       return;
     }
     
-    // Get historical data for technical indicators
-    const historicalData = await dataProviderFactory.getHistoricalData(ticker, '3mo', '1d');
+    // Get historical data for technical indicators (prefer MarketData)
+    let historicalData = await mdGetHistoricalData(ticker, '3M', 'D');
+    if (!historicalData) {
+      historicalData = await dataProviderFactory.getHistoricalData(ticker, '3mo', '1d');
+    }
     if (!historicalData) {
       logger.error(`Failed to get historical data for ${ticker}`, { ticker });
       return;
