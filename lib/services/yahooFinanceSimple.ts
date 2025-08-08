@@ -1,7 +1,6 @@
 import axios from 'axios';
-import * as talib from 'ta-lib';
-import { SCANNER_CONFIG, TECHNICAL_INDICATOR_CONFIG } from '@/lib/config';
-import { cachedFetch, cacheManager } from './cacheManager';
+import { SCANNER_CONFIG } from '@/lib/config';
+import { cachedFetch } from './cacheManager';
 import { createContextLogger } from '@/lib/utils/logger';
 import { getQuote as mdGetQuote, getHistoricalData as mdGetHistoricalData, getOptionsChain as mdGetOptionsChain } from './marketdataService';
 

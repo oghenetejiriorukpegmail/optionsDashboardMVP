@@ -255,8 +255,6 @@ function aggregateBucket(
  */
 export function calculateTechnicalIndicators(data: CandlestickDataPoint[]) {
   const closes = data.map(d => d.close);
-  const highs = data.map(d => d.high);
-  const lows = data.map(d => d.low);
   const volumes = data.map(d => d.volume || 0);
 
   // Simple Moving Average
