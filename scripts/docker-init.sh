@@ -14,8 +14,34 @@ if [ ! -f "$DB_PATH" ]; then
     echo "📦 Database not found, initializing..."
     node /app/scripts/init-db.js
     echo "✅ Database initialized successfully"
+    
+    echo "📊 Seeding historical data..."
+    node /app/scripts/seed-data.js
+    echo "✅ Historical data seeded successfully"
 else
     echo "📦 Database already exists at $DB_PATH"
+    
+    # Check if database has sufficient historical data
+    DATA_COUNT=$(node -e "
+    const sqlite3 = require('sqlite3');
+    const db = new sqlite3.Database('$DB_PATH');
+    db.get('SELECT COUNT(*) as count FROM stock_data WHERE ticker = \"AAPL\"', (err, row) => {
+      if (err) {
+        console.log('0');
+        process.exit(0);
+      }
+      console.log(row.count);
+      db.close();
+    });
+    ")
+    
+    if [ "$DATA_COUNT" -lt "100" ]; then
+        echo "📊 Insufficient historical data ($DATA_COUNT entries), reseeding..."
+        node /app/scripts/seed-data.js
+        echo "✅ Historical data reseeded successfully"
+    else
+        echo "✅ Database has sufficient historical data ($DATA_COUNT entries)"
+    fi
 fi
 
 # Check database health

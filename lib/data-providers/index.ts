@@ -20,7 +20,7 @@ interface CacheEntry<T> {
 class DataProviderFactory {
   private providers: BaseDataProvider[] = [];
   private cache: Map<string, CacheEntry<any>> = new Map();
-  private cacheTimeout: number;
+  private cacheTimeout: number = 30 * 60 * 1000; // 30 minutes default
   private preferredProvider: string | null = null;
 
   constructor() {

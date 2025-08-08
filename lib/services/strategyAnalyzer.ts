@@ -211,7 +211,7 @@ async function analyzeBullishSetup(context: MarketContext, optionsData: any[]): 
     
     // Double-check to prevent invalid target prices
     if (!isFinite(targetPrice) || isNaN(targetPrice) || targetPrice <= Number(price.close)) {
-      console.error(`Invalid target price calculated for ${ticker}: ${targetPrice}, using fallback`);
+      logger.error(`Invalid target price calculated: ${targetPrice}, using fallback`, { ticker: price.ticker });
       targetPrice = Number(price.close) * 1.05;
     }
     
@@ -234,7 +234,7 @@ async function analyzeBullishSetup(context: MarketContext, optionsData: any[]): 
     
     // Double-check to prevent Infinity values
     if (!isFinite(stopLoss) || isNaN(stopLoss)) {
-      console.error(`Invalid stop loss calculated for ${ticker}: ${stopLoss}, using fallback`);
+      logger.error(`Invalid stop loss calculated: ${stopLoss}, using fallback`, { ticker: price.ticker });
       stopLoss = Number(price.close) * 0.97;
     }
     
@@ -347,7 +347,7 @@ async function analyzeBearishSetup(context: MarketContext, optionsData: any[]): 
     
     // Double-check to prevent Infinity values
     if (!isFinite(stopLoss) || isNaN(stopLoss)) {
-      console.error(`Invalid stop loss calculated for ${ticker}: ${stopLoss}, using fallback`);
+      logger.error(`Invalid stop loss calculated: ${stopLoss}, using fallback`, { ticker: price.ticker });
       stopLoss = Number(price.close) * 1.03;
     }
     
@@ -436,7 +436,7 @@ async function analyzeNeutralSetup(context: MarketContext, optionsData: any[], f
     
     // Double-check to prevent Infinity values
     if (!isFinite(stopLoss) || isNaN(stopLoss)) {
-      console.error(`Invalid stop loss calculated for ${ticker}: ${stopLoss}, using fallback`);
+      logger.error(`Invalid stop loss calculated: ${stopLoss}, using fallback`, { ticker: price.ticker });
       stopLoss = Number(price.close) * (Number(price.close) > Number(targetPrice) ? 1.03 : 0.97);
     }
     

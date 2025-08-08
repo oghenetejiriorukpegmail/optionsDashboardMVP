@@ -33,10 +33,10 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get historical data for charts (last 120 days to ensure we get data)
+    // Get historical data for charts (last 180 days to ensure we get 6 months of data)
     let historicalDataResult, historicalData;
     try {
-      historicalDataResult = await getHistoricalData(symbol, 120);
+      historicalDataResult = await getHistoricalData(symbol, 180);
       historicalData = historicalDataResult?.stockData || [];
       logger.debug(`Retrieved ${historicalData.length} historical data points for ${symbol}`);
     } catch (error) {

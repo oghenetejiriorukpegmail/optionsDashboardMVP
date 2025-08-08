@@ -27,7 +27,7 @@ if (!fs.existsSync(dbPath)) {
 const db = new sqlite3.Database(dbPath);
 
 // Default tickers to seed
-const TICKERS = ['TSLA', 'AAPL', 'AMZN', 'MSFT', 'NVDA', 'GOOGL'];
+const TICKERS = ['TSLA', 'AAPL', 'AMD', 'AMZN', 'MSFT', 'NVDA', 'GOOGL'];
 
 // Helper function to format date
 const formatDate = (date) => {
@@ -43,17 +43,18 @@ const randomInRange = (min, max) => {
 const seedStockData = async (ticker) => {
   console.log(`Seeding stock data for ${ticker}...`);
   
-  // Generate 60 days of data
+  // Generate 180 days of data (6 months)
   const today = new Date();
   const prices = [];
   let price = ticker === 'TSLA' ? 250.0 : 
               ticker === 'AAPL' ? 180.0 :
+              ticker === 'AMD' ? 163.0 :
               ticker === 'AMZN' ? 150.0 :
               ticker === 'MSFT' ? 400.0 :
               ticker === 'NVDA' ? 800.0 :
               ticker === 'GOOGL' ? 160.0 : 100.0;
   
-  for (let i = 60; i >= 0; i--) {
+  for (let i = 180; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
     const dateStr = formatDate(date);

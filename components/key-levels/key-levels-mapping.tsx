@@ -79,13 +79,17 @@ export function KeyLevelsMapping({ symbol: propSymbol, ticker: propTicker, curre
 
   const fetchTickerData = async () => {
     try {
-      const data = await fetchScannerResults({ symbol });
-      if (data.setup) {
-        setCurrentPrice(data.setup.price || 0);
+      // Use ticker-context API for comprehensive key levels data
+      const response = await fetch(`/api/ticker-context?symbol=${symbol}`);
+      if (!response.ok) throw new Error(`API returned ${response.status}`);
+      
+      const data = await response.json();
+      if (data) {
+        setCurrentPrice(data.price || 0);
         setKeyLevels({
-          support: [data.setup.stopLoss || 0],
-          resistance: [data.setup.targetPrice || 0],
-          maxPain: data.setup.entryPrice || 0
+          support: data.keyLevels?.support || [],
+          resistance: data.keyLevels?.resistance || [],
+          maxPain: data.keyLevels?.maxPain || data.price || 0
         });
       }
     } catch (error) {
@@ -104,36 +108,24 @@ export function KeyLevelsMapping({ symbol: propSymbol, ticker: propTicker, curre
     async function loadOptionsData() {
       setLoading(true);
       try {
-        const data = await fetchOptionsChain(symbol);
+        // Use the options-data API that has seeded data
+        const optionsResponse = await fetch(`/api/options-data?ticker=${symbol}`);
+        if (!optionsResponse.ok) throw new Error(`Options API returned ${optionsResponse.status}`);
         
-        if (data && data.expirations && data.expirations.length > 0) {
-          setExpirationDates(data.expirations);
+        const optionsData = await optionsResponse.json();
+        
+        if (optionsData && optionsData.optionsData && optionsData.optionsData.length > 0) {
+          // Get unique expiration dates from the options data
+          const expirations = [...new Set(optionsData.optionsData.map((opt: any) => opt.expiration_date))] as string[];
+          setExpirationDates(expirations);
           
-          // Select the closest monthly expiration (3rd Friday)
-          const thirdFridays = data.expirations.filter((exp: string) => {
-            const expDate = new Date(exp);
-            const dayOfWeek = expDate.getDay();
-            const dayOfMonth = expDate.getDate();
-            
-            // If it's Friday (5) and between the 15th and 21st of the month
-            return dayOfWeek === 5 && dayOfMonth >= 15 && dayOfMonth <= 21;
-          });
-          
-          const initialExpiration = thirdFridays.length > 0 ? 
-            thirdFridays[0] : data.expirations[0];
-            
+          // Use the first available expiration
+          const initialExpiration = expirations[0];
           setSelectedExpiration(initialExpiration);
           
-          // Fetch options chain for selected expiration
-          const optionsChain = await fetchOptionsChain(symbol, initialExpiration);
-          
-          // Transform the API response to match component expectations
-          if (optionsChain && (optionsChain.calls || optionsChain.puts)) {
-            const transformedData = transformOptionsChainData(optionsChain);
-            setOptionsData(transformedData);
-          } else {
-            setOptionsData(optionsChain);
-          }
+          // Transform the options data to match component expectations
+          const transformedData = transformOptionsDataToChainFormat(optionsData.optionsData, initialExpiration);
+          setOptionsData(transformedData);
         }
       } catch (error) {
         console.error("Error fetching options chain:", error);
@@ -152,7 +144,47 @@ export function KeyLevelsMapping({ symbol: propSymbol, ticker: propTicker, curre
   }, [symbol, currentPrice]);
 
 
-  // Transform options chain data from API format to component format
+  // Transform options data from database format to component format
+  const transformOptionsDataToChainFormat = (optionsData: any[], expiration: string): OptionsChainData => {
+    if (!optionsData || optionsData.length === 0) {
+      return { expiration: '', strikes: [] };
+    }
+
+    // Filter data for the specific expiration
+    const expirationData = optionsData.filter((opt: any) => opt.expiration_date === expiration);
+    
+    if (expirationData.length === 0) {
+      return { expiration, strikes: [] };
+    }
+
+    // Get all unique strikes
+    const strikes = [...new Set(expirationData.map((opt: any) => opt.strike_price))].sort((a, b) => a - b);
+    
+    // Create strike data by combining call and put data for each strike
+    const strikeData: StrikeData[] = strikes.map(strike => {
+      const strikeOptions = expirationData.filter((opt: any) => opt.strike_price === strike);
+      const sampleOpt = strikeOptions[0]; // Use first option for the strike to get common data
+      
+      return {
+        strike,
+        callOpenInterest: sampleOpt?.call_oi || 0,
+        putOpenInterest: sampleOpt?.put_oi || 0,
+        callVolume: sampleOpt?.call_volume || 0,
+        putVolume: sampleOpt?.put_volume || 0,
+        gamma: sampleOpt?.call_gamma || sampleOpt?.put_gamma || 0,
+        vanna: sampleOpt?.vanna || 0,
+        charm: sampleOpt?.charm || 0,
+        vomma: sampleOpt?.vomma || 0,
+      };
+    });
+
+    return {
+      expiration,
+      strikes: strikeData
+    };
+  };
+
+  // Legacy transform function (keeping for backwards compatibility)
   const transformOptionsChainData = (apiData: any): OptionsChainData => {
     if (!apiData || (!apiData.calls && !apiData.puts)) {
       return { expiration: '', strikes: [] };
@@ -200,14 +232,18 @@ export function KeyLevelsMapping({ symbol: propSymbol, ticker: propTicker, curre
     setLoading(true);
     
     try {
-      const optionsChain = await fetchOptionsChain(symbol, newExpiration);
+      // Use the options-data API that has seeded data
+      const optionsResponse = await fetch(`/api/options-data?ticker=${symbol}`);
+      if (!optionsResponse.ok) throw new Error(`Options API returned ${optionsResponse.status}`);
       
-      // Transform the API response to match component expectations
-      if (optionsChain && (optionsChain.calls || optionsChain.puts)) {
-        const transformedData = transformOptionsChainData(optionsChain);
+      const optionsData = await optionsResponse.json();
+      
+      if (optionsData && optionsData.optionsData && optionsData.optionsData.length > 0) {
+        // Transform the options data for the new expiration
+        const transformedData = transformOptionsDataToChainFormat(optionsData.optionsData, newExpiration);
         setOptionsData(transformedData);
       } else {
-        setOptionsData(optionsChain);
+        setOptionsData(null);
       }
     } catch (error) {
       console.error("Error fetching options chain:", error);

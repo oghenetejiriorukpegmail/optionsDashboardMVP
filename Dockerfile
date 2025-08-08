@@ -43,22 +43,23 @@ RUN chown -R nextjs:nodejs /app/data
 
 # Copy necessary files from builder
 COPY --from=builder --chown=nextjs:nodejs /app/next.config.js ./
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
 
+# Create public directory if it doesn't exist
+RUN mkdir -p ./public && chown nextjs:nodejs ./public
+
 # Switch to nextjs user
 USER nextjs
 
-# Expose application port (using 4000 as per config)
+# Expose application port (defaults to 4000, can be overridden)
 EXPOSE 4000
 
 # Set environment variables
-ENV PORT=4000
 ENV HOSTNAME="0.0.0.0"
 
 # Initialize database and start application
-CMD ["/app/scripts/docker-init.sh"]
+CMD ["sh", "/app/scripts/docker-init.sh"]

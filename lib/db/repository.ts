@@ -332,7 +332,21 @@ export async function getDailySummaries(ticker: string, days: number = 30): Prom
 export async function getAllTickers(): Promise<string[]> {
   const db = await getDb();
   
-  const result = await db.all(`SELECT DISTINCT ticker FROM stock_data`);
+  // Get tickers from multiple tables to ensure we have all available tickers
+  const result = await db.all(`
+    SELECT DISTINCT ticker FROM (
+      SELECT ticker FROM stock_data
+      UNION
+      SELECT ticker FROM daily_summaries
+      UNION
+      SELECT ticker FROM technical_indicators
+      UNION
+      SELECT ticker FROM options_data
+      UNION
+      SELECT ticker FROM market_sentiment
+    ) 
+    ORDER BY ticker
+  `);
   return result.map(row => row.ticker);
 }
 

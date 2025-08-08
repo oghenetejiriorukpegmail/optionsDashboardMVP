@@ -5,13 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { fetchScannerResults } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Button } from "../ui/button";
-import { Line } from "react-chartjs-2";
+import { Line, Chart } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
@@ -33,6 +34,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { Badge } from "../ui/badge";
+import { CandlestickChart } from "../charts/CandlestickChart";
 
 // Register ChartJS components
 ChartJS.register(
@@ -40,6 +42,7 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
@@ -62,6 +65,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
   const [indicators, setIndicators] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('3M'); // Default to 3 months
 
   async function loadIndicators() {
     setLoading(true);
@@ -74,7 +78,11 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
       const data = await response.json();
       setIndicators(data);
     } catch (error) {
-      console.error("Error fetching ticker context:", error);
+      // On error, preserve existing data but add error flag (don't replace everything)
+      setIndicators((prev: any) => ({ 
+        ...prev, 
+        error: error instanceof Error ? error.message : 'Failed to fetch ticker context' 
+      }));
     } finally {
       setLoading(false);
     }
@@ -96,7 +104,11 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
       const data = await response.json();
       setIndicators(data);
     } catch (error) {
-      console.error("Error refreshing ticker context:", error);
+      // On refresh error, preserve existing data but add error flag (don't replace everything)
+      setIndicators((prev: any) => ({ 
+        ...prev, 
+        error: error instanceof Error ? error.message : 'Failed to refresh ticker context' 
+      }));
     } finally {
       setRefreshing(false);
     }
@@ -115,7 +127,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            Market Context Analysis
+            Market Analysis
           </CardTitle>
           <CardDescription>Analyzing market context data for {symbol}...</CardDescription>
         </CardHeader>
@@ -127,14 +139,14 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
     );
   }
 
-  if (!indicators || !indicators.historicalData || indicators.error) {
+  if (!indicators || !indicators.historicalData) {
     return (
       <Card className="w-full bg-gradient-to-br from-background to-muted/50 relative overflow-hidden border">
         <div className="absolute right-0 top-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-primary/20 blur-xl"></div>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            Market Context Analysis
+            Market Analysis
           </CardTitle>
           <CardDescription>Options-Technical Hybrid analysis framework</CardDescription>
         </CardHeader>
@@ -158,7 +170,25 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
   }
 
   // Prepare historical data for charts with improved date formatting
-  const historicalData = indicators.historicalData;
+  const historicalData = indicators.historicalData || [];
+  
+  // Return early if no historical data
+  if (!historicalData || historicalData.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Market Analysis</CardTitle>
+            <CardDescription>No historical data available for {ticker}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">Loading market data...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
   const dates = historicalData.map((d: any, index: number) => {
     const date = new Date(d.date);
     // Show only every 7th date to avoid overcrowding, or if it's the last point
@@ -172,12 +202,12 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
     day: 'numeric', 
     year: '2-digit' 
   }));
-  const closes = historicalData.map((d: any) => d.close);
-  const volumes = historicalData.map((d: any) => d.volume);
-  const ema10 = historicalData.map((d: any) => d.ema10);
-  const ema20 = historicalData.map((d: any) => d.ema20);
-  const ema50 = historicalData.map((d: any) => d.ema50);
-  const rsiValues = historicalData.map((d: any) => d.rsi);
+  const closes = historicalData.map((d: any) => d?.close || null);
+  const volumes = historicalData.map((d: any) => d?.volume || 0);
+  const ema10 = historicalData.map((d: any) => d?.ema10 || null);
+  const ema20 = historicalData.map((d: any) => d?.ema20 || null);
+  const ema50 = historicalData.map((d: any) => d?.ema50 || null);
+  const rsiValues = historicalData.map((d: any) => d?.rsi || 50);
   const stochRsiValues = historicalData.map((d: any) => d.stochasticRsi);
   
   // Get latest data point for trend analysis
@@ -192,60 +222,47 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
   // Determine momentum status from RSI and Stochastic RSI
   const momentumStatus = determineMomentumStatus(latestData.rsi, latestData.stochasticRsi);
   
-  // Enhanced EMA Chart configuration with superior contrast and styling
-  const emaChartData = {
-    labels: dates,
-    datasets: [
-      {
-        label: `${symbol} Price`,
-        data: closes,
-        borderColor: '#06b6d4', // Cyan - stands out from EMAs
-        backgroundColor: 'rgba(6, 182, 212, 0.08)',
-        borderWidth: 3.5,
-        pointRadius: 0,
-        pointHoverRadius: 7,
-        tension: 0.2,
-        fill: true,
-        order: 1,
-      },
-      {
-        label: 'EMA 10 (Fast)',
-        data: ema10,
-        borderColor: '#ef4444', // Bright red - fastest moving
-        backgroundColor: 'transparent',
-        borderWidth: 3,
-        pointRadius: 0,
-        pointHoverRadius: 6,
-        tension: 0.3,
-        borderDash: [0], // Solid
-        order: 2,
-      },
-      {
-        label: 'EMA 20 (Medium)',
-        data: ema20,
-        borderColor: '#f97316', // Orange - medium speed
-        backgroundColor: 'transparent',
-        borderWidth: 2.5,
-        pointRadius: 0,
-        pointHoverRadius: 5,
-        tension: 0.3,
-        borderDash: [8, 4], // Medium dashes
-        order: 3,
-      },
-      {
-        label: 'EMA 50 (Slow)',
-        data: ema50,
-        borderColor: '#8b5cf6', // Purple - slowest moving
-        backgroundColor: 'transparent',
-        borderWidth: 2.5,
-        pointRadius: 0,
-        pointHoverRadius: 5,
-        tension: 0.3,
-        borderDash: [12, 6], // Long dashes
-        order: 4,
-      },
-    ],
+  // Get number of data points to show based on selected period
+  // Using actual calendar days since the data includes all days, not just trading days
+  const getDaysForPeriod = (period: string): number => {
+    switch (period) {
+      case '1M': return 30; // 1 month 
+      case '3M': return 90; // 3 months  
+      case '6M': return 180; // 6 months
+      case '1Y': return 365; // 1 year
+      default: return 90; // Default to 3M
+    }
   };
+  
+  const daysToShow = getDaysForPeriod(selectedPeriod);
+  
+  // Group by date to eliminate intraday noise, then filter by time period
+  const sampledData = (() => {
+    const dailyData: any[] = [];
+    const dateGroups: {[key: string]: any[]} = {};
+    
+    // Group ALL historical data by date first
+    historicalData.forEach((item: any) => {
+      const dateStr = new Date(item.date).toDateString();
+      if (!dateGroups[dateStr]) {
+        dateGroups[dateStr] = [];
+      }
+      dateGroups[dateStr].push(item);
+    });
+    
+    // Take the last entry for each date (end-of-day close)
+    Object.keys(dateGroups).forEach(dateStr => {
+      const dayData = dateGroups[dateStr];
+      // Sort by timestamp and take the last one (latest time of day)
+      const sortedData = dayData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      dailyData.push(sortedData[sortedData.length - 1]);
+    });
+    
+    // Sort by date and THEN filter by time period
+    const sortedDailyData = dailyData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return sortedDailyData.slice(-Math.min(daysToShow, sortedDailyData.length));
+  })();
+  
   
   // Enhanced RSI and Stochastic RSI Chart configuration with better contrast
   const rsiChartData = {
@@ -354,7 +371,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
         <div>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            Market Context Analysis
+            Market Analysis
           </CardTitle>
           <CardDescription>
             Analysis for {symbol} using the Options-Technical Hybrid framework
@@ -583,107 +600,47 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
           <TabsContent value="trend" className="space-y-6">
             <Card className="border p-0 overflow-hidden">
               <div className="p-4 border-b bg-muted/20">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                  Price and Moving Averages
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
+                    Price and Moving Averages
+                  </h3>
+                  {/* Time Period Selector */}
+                  <div className="flex gap-1">
+                    <button 
+                      className={`px-2 py-1 text-xs border rounded ${selectedPeriod === '1M' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+                      onClick={() => setSelectedPeriod('1M')}
+                    >
+                      1M
+                    </button>
+                    <button 
+                      className={`px-2 py-1 text-xs border rounded ${selectedPeriod === '3M' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+                      onClick={() => setSelectedPeriod('3M')}
+                    >
+                      3M
+                    </button>
+                    <button 
+                      className={`px-2 py-1 text-xs border rounded ${selectedPeriod === '6M' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+                      onClick={() => setSelectedPeriod('6M')}
+                    >
+                      6M
+                    </button>
+                    <button 
+                      className={`px-2 py-1 text-xs border rounded ${selectedPeriod === '1Y' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+                      onClick={() => setSelectedPeriod('1Y')}
+                    >
+                      1Y
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="p-4 h-96">
-                <Line data={emaChartData} options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  interaction: {
-                    mode: 'index' as const,
-                    intersect: false,
-                  },
-                  elements: {
-                    point: {
-                      hoverRadius: 8,
-                    }
-                  },
-                  plugins: {
-                    legend: {
-                      position: 'top' as const,
-                      align: 'start' as const,
-                      labels: {
-                        usePointStyle: true,
-                        pointStyle: 'line',
-                        padding: 20,
-                        font: {
-                          size: 12,
-                          weight: '500',
-                        },
-                        color: '#6b7280',
-                      }
-                    },
-                    tooltip: {
-                      backgroundColor: 'rgba(17, 24, 39, 0.95)',
-                      titleColor: '#f9fafb',
-                      bodyColor: '#f9fafb',
-                      borderColor: '#374151',
-                      borderWidth: 1,
-                      padding: 16,
-                      cornerRadius: 8,
-                      usePointStyle: true,
-                      boxPadding: 8,
-                      displayColors: true,
-                      callbacks: {
-                        title: (context: any) => {
-                          const index = context[0].dataIndex;
-                          return fullDates[index];
-                        },
-                        label: (context: any) => {
-                          const value = context.parsed.y;
-                          if (context.datasetIndex === 0) {
-                            return `${context.dataset.label}: $${value.toFixed(2)}`;
-                          }
-                          return `${context.dataset.label}: $${value ? value.toFixed(2) : 'N/A'}`;
-                        }
-                      }
-                    }
-                  },
-                  scales: {
-                    x: {
-                      display: true,
-                      grid: {
-                        display: false,
-                      },
-                      ticks: {
-                        maxRotation: 0,
-                        color: '#9ca3af',
-                        font: {
-                          size: 11,
-                        },
-                        callback: function(value: any, index: number) {
-                          // Only show labels that aren't empty
-                          const label = this.getLabelForValue(value);
-                          return label || '';
-                        }
-                      }
-                    },
-                    y: {
-                      display: true,
-                      position: 'right' as const,
-                      grid: {
-                        color: 'rgba(156, 163, 175, 0.1)',
-                        lineWidth: 1,
-                      },
-                      ticks: {
-                        color: '#9ca3af',
-                        font: {
-                          size: 11,
-                        },
-                        callback: function(value: any) {
-                          return '$' + value.toFixed(2);
-                        }
-                      }
-                    }
-                  },
-                  animation: {
-                    duration: 750,
-                    easing: 'easeInOutQuart',
-                  },
-                }} />
+              <div className="p-4" style={{ height: '480px' }}>
+                <CandlestickChart 
+                  data={sampledData}
+                  symbol={symbol}
+                  selectedPeriod={selectedPeriod}
+                  height={450}
+                />
               </div>
             </Card>
             
@@ -900,7 +857,7 @@ export function MarketContextAnalysis({ symbol: propSymbol, ticker }: MarketCont
                         padding: 20,
                         font: {
                           size: 12,
-                          weight: '500',
+                          weight: 'normal' as const,
                         },
                         color: '#6b7280',
                       }
@@ -1296,18 +1253,23 @@ function stochRsiTrend(historicalData: any[]) {
 
 // Helper function to check for RSI divergence
 function rsiDivergence(historicalData: any[]) {
+  if (!historicalData || historicalData.length < 10) {
+    return 'none';
+  }
   const last10Bars = historicalData.slice(-10);
   
   // Check for bullish divergence: price making lower lows, RSI making higher lows
   let priceLowerLow = false;
   let rsiHigherLow = false;
   
-  if (last10Bars[9].close < last10Bars[5].close && 
+  if (last10Bars[9]?.close && last10Bars[5]?.close && last10Bars[0]?.close &&
+      last10Bars[9].close < last10Bars[5].close && 
       last10Bars[5].close < last10Bars[0].close) {
     priceLowerLow = true;
   }
   
-  if (last10Bars[9].rsi > last10Bars[5].rsi && 
+  if (last10Bars[9]?.rsi && last10Bars[5]?.rsi && last10Bars[0]?.rsi &&
+      last10Bars[9].rsi > last10Bars[5].rsi && 
       last10Bars[5].rsi > last10Bars[0].rsi) {
     rsiHigherLow = true;
   }
@@ -1318,12 +1280,14 @@ function rsiDivergence(historicalData: any[]) {
   let priceHigherHigh = false;
   let rsiLowerHigh = false;
   
-  if (last10Bars[9].close > last10Bars[5].close && 
+  if (last10Bars[9]?.close && last10Bars[5]?.close && last10Bars[0]?.close &&
+      last10Bars[9].close > last10Bars[5].close && 
       last10Bars[5].close > last10Bars[0].close) {
     priceHigherHigh = true;
   }
   
-  if (last10Bars[9].rsi < last10Bars[5].rsi && 
+  if (last10Bars[9]?.rsi && last10Bars[5]?.rsi && last10Bars[0]?.rsi &&
+      last10Bars[9].rsi < last10Bars[5].rsi && 
       last10Bars[5].rsi < last10Bars[0].rsi) {
     rsiLowerHigh = true;
   }

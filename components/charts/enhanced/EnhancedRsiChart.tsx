@@ -40,6 +40,7 @@ interface DataPoint {
   date: string;
   rsi: number;
   stochRsi?: number;
+  close?: number;
 }
 
 interface EnhancedRsiChartProps {
@@ -183,7 +184,15 @@ export default function EnhancedRsiChart({
     // Proper RSI divergence analysis implementation
     // Compare RSI trend with price trend over the analysis period
     const rsiTrend = recentData[recentData.length - 1].rsi - recentData[0].rsi;
-    const priceTrend = recentData[recentData.length - 1].close - recentData[0].close;
+    
+    // If price data is not available, return null
+    const lastClose = recentData[recentData.length - 1].close;
+    const firstClose = recentData[0].close;
+    if (lastClose === undefined || firstClose === undefined) {
+      return null;
+    }
+    
+    const priceTrend = lastClose - firstClose;
     
     // Calculate RSI slope and price slope for better accuracy
     const rsiSlope = rsiTrend / recentData.length;
