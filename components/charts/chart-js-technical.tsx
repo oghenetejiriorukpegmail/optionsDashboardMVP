@@ -46,17 +46,54 @@ export default function ChartJSTechnical({
   height = 300,
   title = "Price & EMA Chart",
 }: ChartJSTechnicalProps) {
+  // Read CSS variable when available (falls back to provided color string)
+  const getCssVar = (name: string, fallback: string) => {
+    if (typeof document === "undefined") return fallback;
+    const val = getComputedStyle(document.documentElement).getPropertyValue(name);
+    return val ? val.trim() : fallback;
+  };
+
+  const tooltipBg = getCssVar("--card", "rgb(15,23,42)");
+  const tooltipFg = getCssVar("--card-foreground", "rgb(255,255,255)");
+  const accentColor = getCssVar("--accent", "rgb(6,182,212)");
+
   const options: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+      mode: "index",
+      intersect: false,
+    },
     plugins: {
       legend: {
         position: "top" as const,
         align: "end" as const,
+        labels: {
+          usePointStyle: true,
+          padding: 12,
+          boxWidth: 8,
+        },
       },
       title: {
         display: true,
         text: title,
+      },
+      tooltip: {
+        enabled: true,
+        backgroundColor: tooltipBg,
+        titleColor: tooltipFg,
+        bodyColor: tooltipFg,
+        borderColor: "rgba(255,255,255,0.06)",
+        borderWidth: 1,
+        padding: 10,
+        cornerRadius: 8,
+        displayColors: true,
+        callbacks: {
+          label: (context) => {
+            const value = context.formattedValue;
+            return `${context.dataset.label ?? ""}: ${value}`;
+          },
+        },
       },
     },
     scales: {
@@ -66,6 +103,14 @@ export default function ChartJSTechnical({
           display: true,
           text: "Price",
         },
+        ticks: {
+          callback: function (val) {
+            // @ts-ignore
+            const num = Number(this.getLabelForValue(val));
+            if (isNaN(num)) return String(val);
+            return num >= 1000 ? `${(num / 1000).toFixed(1)}k` : num.toString();
+          },
+        },
       },
       x: {
         display: true,
@@ -73,7 +118,25 @@ export default function ChartJSTechnical({
           display: true,
           text: "Date",
         },
+        ticks: {
+          maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 8,
+        },
       },
+    },
+    elements: {
+      point: {
+        radius: 2,
+        hoverRadius: 5,
+      },
+      line: {
+        tension: 0.12,
+      },
+    },
+    hover: {
+      mode: "nearest",
+      intersect: false,
     },
   };
 
@@ -113,6 +176,17 @@ export default function ChartJSTechnical({
       },
     ],
   };
+
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ height }} className="flex items-center justify-center rounded-md">
+        <div className="flex flex-col items-center gap-2">
+          <div className="h-12 w-12 rounded-md bg-[color:var(--card)/0.6]" />
+          <p className="text-sm text-[color:var(--muted-foreground)]">No data available for chart</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ height }}>
